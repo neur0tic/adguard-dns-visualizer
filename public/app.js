@@ -60,6 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sidebarToggle) {
         sidebarToggle.addEventListener('click', toggleSidebarPosition);
     }
+
+    // Add sidebar hide toggle event listener
+    const sidebarHideToggle = document.getElementById('sidebar-hide-toggle');
+    if (sidebarHideToggle) {
+        sidebarHideToggle.addEventListener('click', toggleSidebarVisibility);
+    }
+
+    // Load saved sidebar visibility state
+    const savedSidebarHidden = localStorage.getItem('sidebarHidden');
+    if (savedSidebarHidden === 'true') {
+        document.body.classList.add('sidebar-hidden');
+    }
 });
 
 /**
@@ -659,6 +671,16 @@ function toggleSidebarPosition() {
     
     // Store preference in localStorage
     localStorage.setItem('sidebarPosition', isSidebarRight ? 'right' : 'left');
+}
+
+/**
+ * Toggle sidebar visibility (show/hide)
+ */
+function toggleSidebarVisibility() {
+    const isHidden = document.body.classList.toggle('sidebar-hidden');
+    
+    // Store preference in localStorage
+    localStorage.setItem('sidebarHidden', isHidden ? 'true' : 'false');
 }
 
 /**
