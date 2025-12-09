@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Visualization Dashboard</title>
+
+    <!-- MapLibre GL JS -->
+    <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" rel="stylesheet" />
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <link href="styles.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <div>Connecting to DNS stream...</div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- Header Section -->
+        <div class="sidebar-section sidebar-header">
+            <h1>DNS Visualization</h1>
+            <div class="status">
+                <span class="status-indicator" id="status-indicator"></span>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="sidebar-section">
+            <div class="stats-title">Active Queries</div>
+            <div class="stat-item">
+                <span>Active Queries</span>
+                <span class="stat-value" id="stat-active">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Total Queries</span>
+                <span class="stat-value" id="stat-total">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Blocked Queries</span>
+                <span class="stat-value" id="stat-blocked">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Avg Response</span>
+                <span class="stat-value" id="stat-avg">0ms</span>
+            </div>
+
+            <!-- Response Time Graph -->
+            <div class="response-graph">
+                <canvas id="response-chart" width="332" height="80"></canvas>
+            </div>
+        </div>
+
+        <!-- Log Stream Section -->
+        <div class="sidebar-section">
+            <div class="log-stream-title">DNS Query Log</div>
+            <div class="log-stream-content" id="log-container"></div>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" id="theme-toggle">
+        <button id="theme-icon">☀️</button>
+    </div>
+
+    <!-- DNS Type Legend -->
+    <div class="dns-legend">
+        <div class="legend-title">DNS Query Types</div>
+        <div class="legend-items">
+            <div class="legend-item">
+                <span class="legend-color" style="background: #f6ad55;"></span>
+                <span class="legend-label">A</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #4299e1;"></span>
+                <span class="legend-label">AAAA</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #48bb78;"></span>
+                <span class="legend-label">CNAME</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #9f7aea;"></span>
+                <span class="legend-label">MX</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #ed8936;"></span>
+                <span class="legend-label">TXT</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #38b2ac;"></span>
+                <span class="legend-label">NS</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #fc8181;"></span>
+                <span class="legend-label">SOA</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #f687b3;"></span>
+                <span class="legend-label">PTR</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #ecc94b;"></span>
+                <span class="legend-label">SRV</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background: #667eea;"></span>
+                <span class="legend-label">CAA</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
