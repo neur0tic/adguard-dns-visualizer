@@ -4,8 +4,8 @@
 
 // Configuration
 const MAX_CONCURRENT_ARCS = 100;
-const MAX_LOG_ENTRIES = 10;
-const ARC_ANIMATION_DURATION = 2000; // ms
+const MAX_LOG_ENTRIES = 15;
+const ARC_ANIMATION_DURATION = 200; // ms
 const LABEL_LIFETIME = 5000; // ms
 
 // DNS Query Type Colors
