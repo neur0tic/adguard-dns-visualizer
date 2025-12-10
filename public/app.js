@@ -812,27 +812,34 @@ function applyDarkMode() {
         if (layer.type === 'background') {
             map.setPaintProperty(layer.id, 'background-color', '#0a0e27');
         } else if (layer.type === 'fill' && (layer.id.includes('water') || layer['source-layer'] === 'water')) {
-            map.setPaintProperty(layer.id, 'fill-color', '#1a2332');
-            map.setPaintProperty(layer.id, 'fill-opacity', 0.9);
+            // Darker blue for water with better contrast
+            map.setPaintProperty(layer.id, 'fill-color', '#0F1824');
+            map.setPaintProperty(layer.id, 'fill-opacity', 0.8);
         } else if (layer.type === 'fill' && !layer.id.includes('water')) {
-            map.setPaintProperty(layer.id, 'fill-color', '#2d3748');
-            map.setPaintProperty(layer.id, 'fill-outline-color', '#000000');
-            map.setPaintProperty(layer.id, 'fill-opacity', 0.95);
+            // Lighter land mass for better visibility
+            map.setPaintProperty(layer.id, 'fill-color', '#1A2333');
+            map.setPaintProperty(layer.id, 'fill-outline-color', '#2D3748');
+            map.setPaintProperty(layer.id, 'fill-opacity', 0.7);
         } else if (layer.type === 'line') {
             if (layer.id.includes('boundary') || layer.id.includes('admin')) {
-                map.setPaintProperty(layer.id, 'line-color', '#c2c2c2');
+                // More visible borders
+                map.setPaintProperty(layer.id, 'line-color', '#374151');
                 map.setPaintProperty(layer.id, 'line-blur', 1.5);
-                map.setPaintProperty(layer.id, 'line-opacity', 0.4);
-            } else {
-                map.setPaintProperty(layer.id, 'line-color', '#4a5568');
                 map.setPaintProperty(layer.id, 'line-opacity', 0.3);
+                map.setPaintProperty(layer.id, 'line-width', 0.8);
+            } else {
+                // Slightly more visible lines
+                map.setPaintProperty(layer.id, 'line-color', '#1F2937');
+                map.setPaintProperty(layer.id, 'line-opacity', 0.1);
             }
         } else if (layer.type === 'symbol') {
             if (layer.layout && layer.layout['text-field']) {
-                map.setPaintProperty(layer.id, 'text-color', '#e2e8f0');
+                // Slightly brighter and more visible labels
+                map.setPaintProperty(layer.id, 'text-color', '#546E7A');
                 map.setPaintProperty(layer.id, 'text-halo-color', '#0a0e27');
                 map.setPaintProperty(layer.id, 'text-halo-width', 2);
                 map.setPaintProperty(layer.id, 'text-halo-blur', 1);
+                map.setPaintProperty(layer.id, 'text-opacity', 0.4);
             }
         }
     });
