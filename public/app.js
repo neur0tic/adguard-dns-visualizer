@@ -10,12 +10,22 @@
 const CONFIG = {
   MAX_CONCURRENT_ARCS: 100,
   MAX_LOG_ENTRIES: 15,
+  MAX_CONCURRENT_LABELS: 12, // Maximum labels shown at once (NEW)
   ARC_ANIMATION_DURATION: 200,
   LABEL_LIFETIME: 5000,
+  LABEL_LIFETIME_MIN: 3000, // Minimum lifetime when crowded (NEW)
+  LABEL_PADDING: 15, // Minimum space between labels (increased)
+  LABEL_MAX_OFFSET: 150, // Maximum offset to try (increased)
+  LABEL_SEARCH_RADIUS: 200, // Search radius for label positioning
+  LABEL_ANGLE_STEPS: 16, // Number of angles to try in circular pattern
+  LABEL_QUEUE_ENABLED: true, // Enable label queuing system (NEW)
+  LABEL_PRIORITY_BLOCKED: true, // Prioritize blocked queries (NEW)
   ARC_TRAIL_COUNT: 3,
   ARC_TRAIL_LIFETIME: 2000,
   CHART_DATA_POINTS: 50,
   CHART_UPDATE_DEBOUNCE: 16, // ~60fps
+  CHART_ANIMATION_DURATION: 300, // Smooth transition duration in ms
+  CHART_TENSION: 0.4, // Curve tension (0 = straight lines, 1 = very curvy)
   RECONNECT_BASE_DELAY: 1000,
   RECONNECT_MAX_DELAY: 30000,
   RECONNECT_MAX_ATTEMPTS: 10,
@@ -48,12 +58,18 @@ const state = {
   isSidebarRight: false,
   navigationControl: null,
   activeArcs: [],
+  activeLabelBounds: [], // Track active label positions for collision detection
+  activeLabels: 0, // Count of currently visible labels (NEW)
+  labelQueue: [], // Queue for labels waiting to be displayed (NEW)
   totalQueries: 0,
   blockedQueries: 0,
   responseTimes: [],
   logEntries: [],
   responseChart: null,
   chartData: [],
+  chartDataPrevious: [], // Previous values for smooth interpolation
+  chartAnimationStartTime: null,
+  chartAnimationFrameId: null,
   sourcePulseActive: false,
   reconnectAttempts: 0,
   reconnectTimeoutId: null,
@@ -693,22 +709,29 @@ function triggerSourcePulse() {
   }, CONFIG.SOURCE_PULSE_THROTTLE);
 }
 
-// Continued in next message due to length...
-// Continued from part 1...
-
 // ============================================================================
 // UI UPDATES
 // ============================================================================
 
 function addArcLabel(destination, data) {
+  // Check if we should queue this label
+  if (CONFIG.LABEL_QUEUE_ENABLED && state.activeLabels >= CONFIG.MAX_CONCURRENT_LABELS) {
+    queueLabel(destination, data);
+    return;
+  }
+
   try {
     const point = state.map.project([destination.lng, destination.lat]);
 
     const label = document.createElement('div');
     label.className = 'arc-label';
-    label.style.left = `${point.x}px`;
-    label.style.top = `${point.y - 20}px`;
-
+    label.style.opacity = '0'; // Hide initially to measure
+    
+    // Add priority class for blocked queries
+    if (data.filtered) {
+      label.classList.add('arc-label-priority');
+    }
+    
     const domain = sanitizeHTML(data.domain || 'Unknown');
     const ip = data.ip ? sanitizeHTML(data.ip) : '';
     const queryType = sanitizeHTML(data.queryType || data.type || 'A');
@@ -728,14 +751,354 @@ function addArcLabel(destination, data) {
 
     document.body.appendChild(label);
 
+    // Get actual dimensions after rendering
+    const rect = label.getBoundingClientRect();
+    const labelWidth = rect.width;
+    const labelHeight = rect.height;
+
+    // Find non-overlapping position
+    const position = findNonOverlappingPosition(
+      point.x,
+      point.y,
+      labelWidth,
+      labelHeight
+    );
+
+    // If no valid position found and we're at capacity, queue it
+    if (!position && CONFIG.LABEL_QUEUE_ENABLED) {
+      label.remove();
+      queueLabel(destination, data);
+      return;
+    }
+
+    // Apply final position
+    label.style.left = `${position.x}px`;
+    label.style.top = `${position.y}px`;
+    label.style.opacity = '1'; // Show label
+
+    // Increment active label count
+    state.activeLabels++;
+
+    // Add connector line if label is far from origin point
+    const distance = Math.sqrt(
+      Math.pow(position.x - point.x, 2) + 
+      Math.pow(position.y - point.y, 2)
+    );
+    
+    let connector = null;
+    if (distance > 50) {
+      connector = createLabelConnector(
+        point.x, 
+        point.y, 
+        position.x + labelWidth / 2, 
+        position.y + labelHeight / 2
+      );
+    }
+
+    // Track this label's bounds
+    const bounds = {
+      left: position.x,
+      top: position.y,
+      right: position.x + labelWidth,
+      bottom: position.y + labelHeight,
+      timestamp: Date.now()
+    };
+    state.activeLabelBounds.push(bounds);
+
+    // Calculate adaptive lifetime based on congestion
+    const lifetime = calculateAdaptiveLifetime();
+
+    // Clean up after lifetime
     setTimeout(() => {
       if (label.parentNode) {
         label.remove();
       }
-    }, CONFIG.LABEL_LIFETIME);
+      if (connector && connector.parentNode) {
+        connector.remove();
+      }
+      // Remove from tracking
+      const index = state.activeLabelBounds.indexOf(bounds);
+      if (index > -1) {
+        state.activeLabelBounds.splice(index, 1);
+      }
+      
+      // Decrement active label count
+      state.activeLabels--;
+      
+      // Process queue if enabled
+      if (CONFIG.LABEL_QUEUE_ENABLED) {
+        processLabelQueue();
+      }
+    }, lifetime);
+
+    // Periodic cleanup of expired bounds (in case of errors)
+    cleanupExpiredLabelBounds();
   } catch (error) {
     console.error('Error adding label:', error);
   }
+}
+
+/**
+ * Find a position that doesn't overlap with existing labels
+ * Uses a comprehensive radial search pattern with multiple distance rings
+ * @param {number} x - Desired x position
+ * @param {number} y - Desired y position  
+ * @param {number} width - Label width
+ * @param {number} height - Label height
+ * @returns {{x: number, y: number}} - Non-overlapping position
+ */
+function findNonOverlappingPosition(x, y, width, height) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const padding = CONFIG.LABEL_PADDING;
+  
+  // Priority positions to try first (close to point)
+  const priorityOffsets = [
+    { dx: 0, dy: -30 },         // Directly above
+    { dx: 0, dy: 30 },          // Directly below
+    { dx: -25, dy: -25 },       // Top-left
+    { dx: 25, dy: -25 },        // Top-right
+    { dx: -30, dy: 0 },         // Left
+    { dx: 30, dy: 0 },          // Right
+  ];
+
+  // Try priority positions first
+  for (const offset of priorityOffsets) {
+    const testX = x + offset.dx;
+    const testY = y + offset.dy;
+    
+    const testBounds = {
+      left: testX,
+      top: testY,
+      right: testX + width,
+      bottom: testY + height
+    };
+
+    if (isValidPosition(testBounds, viewportWidth, viewportHeight) && !hasCollision(testBounds)) {
+      return { x: testX, y: testY };
+    }
+  }
+
+  // Use radial search pattern with increasing distance rings
+  const angleSteps = CONFIG.LABEL_ANGLE_STEPS;
+  const maxRadius = CONFIG.LABEL_SEARCH_RADIUS;
+  const radiusSteps = 6; // Number of distance rings to try
+  
+  for (let r = 1; r <= radiusSteps; r++) {
+    const radius = (maxRadius / radiusSteps) * r;
+    
+    // Try positions around a circle at this radius
+    for (let a = 0; a < angleSteps; a++) {
+      const angle = (Math.PI * 2 * a) / angleSteps;
+      const testX = x + Math.cos(angle) * radius;
+      const testY = y + Math.sin(angle) * radius;
+      
+      const testBounds = {
+        left: testX,
+        top: testY,
+        right: testX + width,
+        bottom: testY + height
+      };
+
+      if (isValidPosition(testBounds, viewportWidth, viewportHeight) && !hasCollision(testBounds)) {
+        return { x: testX, y: testY };
+      }
+    }
+  }
+
+  // If still no position found, try a grid search in the vicinity
+  const gridStep = 40;
+  const gridRange = 3;
+  
+  for (let gx = -gridRange; gx <= gridRange; gx++) {
+    for (let gy = -gridRange; gy <= gridRange; gy++) {
+      if (gx === 0 && gy === 0) continue;
+      
+      const testX = x + gx * gridStep;
+      const testY = y + gy * gridStep;
+      
+      const testBounds = {
+        left: testX,
+        top: testY,
+        right: testX + width,
+        bottom: testY + height
+      };
+
+      if (isValidPosition(testBounds, viewportWidth, viewportHeight) && !hasCollision(testBounds)) {
+        return { x: testX, y: testY };
+      }
+    }
+  }
+
+  // Last resort: find least crowded area (only if queue is disabled)
+  if (!CONFIG.LABEL_QUEUE_ENABLED) {
+    return findLeastCrowdedPosition(x, y, width, height, viewportWidth, viewportHeight);
+  }
+  
+  // If queue is enabled and no position found, return null to trigger queuing
+  return null;
+}
+
+/**
+ * Check if position is within viewport bounds
+ * @param {{left: number, top: number, right: number, bottom: number}} bounds
+ * @param {number} viewportWidth
+ * @param {number} viewportHeight
+ * @returns {boolean}
+ */
+function isValidPosition(bounds, viewportWidth, viewportHeight) {
+  const margin = 10; // Keep labels away from edges
+  return (
+    bounds.left >= margin &&
+    bounds.right <= viewportWidth - margin &&
+    bounds.top >= margin &&
+    bounds.bottom <= viewportHeight - margin
+  );
+}
+
+/**
+ * Find the position with minimum overlap when no clear spot is available
+ * @param {number} x - Center x
+ * @param {number} y - Center y
+ * @param {number} width - Label width
+ * @param {number} height - Label height
+ * @param {number} viewportWidth
+ * @param {number} viewportHeight
+ * @returns {{x: number, y: number}}
+ */
+function findLeastCrowdedPosition(x, y, width, height, viewportWidth, viewportHeight) {
+  let bestPosition = { x, y: y - 30 };
+  let minOverlapScore = Infinity;
+  
+  const testPositions = [
+    { dx: 0, dy: -50 },
+    { dx: 0, dy: 50 },
+    { dx: -60, dy: 0 },
+    { dx: 60, dy: 0 },
+    { dx: -50, dy: -50 },
+    { dx: 50, dy: -50 },
+    { dx: -50, dy: 50 },
+    { dx: 50, dy: 50 },
+  ];
+  
+  for (const offset of testPositions) {
+    const testX = x + offset.dx;
+    const testY = y + offset.dy;
+    
+    const testBounds = {
+      left: testX,
+      top: testY,
+      right: testX + width,
+      bottom: testY + height
+    };
+    
+    if (!isValidPosition(testBounds, viewportWidth, viewportHeight)) continue;
+    
+    const overlapScore = calculateOverlapScore(testBounds);
+    
+    if (overlapScore < minOverlapScore) {
+      minOverlapScore = overlapScore;
+      bestPosition = { x: testX, y: testY };
+    }
+  }
+  
+  return bestPosition;
+}
+
+/**
+ * Calculate how much a position overlaps with existing labels
+ * Lower score is better
+ * @param {{left: number, top: number, right: number, bottom: number}} bounds
+ * @returns {number}
+ */
+function calculateOverlapScore(bounds) {
+  let score = 0;
+  const padding = CONFIG.LABEL_PADDING;
+  
+  for (const existingBounds of state.activeLabelBounds) {
+    const overlapX = Math.max(0, 
+      Math.min(bounds.right + padding, existingBounds.right + padding) - 
+      Math.max(bounds.left - padding, existingBounds.left - padding)
+    );
+    
+    const overlapY = Math.max(0,
+      Math.min(bounds.bottom + padding, existingBounds.bottom + padding) - 
+      Math.max(bounds.top - padding, existingBounds.top - padding)
+    );
+    
+    score += overlapX * overlapY; // Area of overlap
+  }
+  
+  return score;
+}
+
+/**
+ * Check if a bounds rectangle collides with any active labels
+ * @param {{left: number, top: number, right: number, bottom: number}} bounds
+ * @returns {boolean} - True if collision detected
+ */
+function hasCollision(bounds) {
+  const padding = CONFIG.LABEL_PADDING;
+  
+  for (const existingBounds of state.activeLabelBounds) {
+    // Check if rectangles overlap (with padding)
+    if (
+      bounds.left - padding < existingBounds.right + padding &&
+      bounds.right + padding > existingBounds.left - padding &&
+      bounds.top - padding < existingBounds.bottom + padding &&
+      bounds.bottom + padding > existingBounds.top - padding
+    ) {
+      return true; // Collision detected
+    }
+  }
+  
+  return false; // No collision
+}
+
+/**
+ * Create a visual connector line from point to label
+ * @param {number} x1 - Start x (point)
+ * @param {number} y1 - Start y (point)
+ * @param {number} x2 - End x (label center)
+ * @param {number} y2 - End y (label center)
+ * @returns {HTMLElement} - SVG line element
+ */
+function createLabelConnector(x1, y1, x2, y2) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.style.position = 'absolute';
+  svg.style.top = '0';
+  svg.style.left = '0';
+  svg.style.width = '100%';
+  svg.style.height = '100%';
+  svg.style.pointerEvents = 'none';
+  svg.style.zIndex = '4';
+  svg.classList.add('label-connector');
+  
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', x1);
+  line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2);
+  line.setAttribute('y2', y2);
+  line.setAttribute('stroke', state.isDarkMode ? 'rgba(246, 173, 85, 0.3)' : 'rgba(66, 100, 251, 0.3)');
+  line.setAttribute('stroke-width', '1');
+  line.setAttribute('stroke-dasharray', '3,3');
+  
+  svg.appendChild(line);
+  document.body.appendChild(svg);
+  
+  return svg;
+}
+
+/**
+ * Clean up expired label bounds from tracking array
+ */
+function cleanupExpiredLabelBounds() {
+  const now = Date.now();
+  const maxAge = CONFIG.LABEL_LIFETIME + 1000; // Add buffer
+  
+  state.activeLabelBounds = state.activeLabelBounds.filter(
+    bounds => now - bounds.timestamp < maxAge
+  );
 }
 
 function addLogEntry(entry) {
@@ -860,28 +1223,54 @@ function initResponseChart() {
 
   // Initialize with empty data
   state.chartData = new Array(CONFIG.CHART_DATA_POINTS).fill(0);
+  state.chartDataPrevious = new Array(CONFIG.CHART_DATA_POINTS).fill(0);
 
   drawResponseChart();
 }
 
 function updateResponseChartDebounced(responseTime) {
+  // Store previous data for smooth interpolation
+  state.chartDataPrevious = [...state.chartData];
+  
   state.chartData.push(responseTime);
   
   // Keep bounded
   while (state.chartData.length > CONFIG.CHART_DATA_POINTS) {
     state.chartData.shift();
+    state.chartDataPrevious.shift();
   }
   
-  // Debounce chart updates for performance
-  if (state.chartUpdateTimeoutId) return;
+  // Ensure previous array is same length
+  while (state.chartDataPrevious.length < state.chartData.length) {
+    state.chartDataPrevious.unshift(0);
+  }
   
-  state.chartUpdateTimeoutId = setTimeout(() => {
-    state.chartUpdateTimeoutId = null;
-    requestAnimationFrame(drawResponseChart);
-  }, CONFIG.CHART_UPDATE_DEBOUNCE);
+  // Start smooth animation
+  if (state.chartAnimationFrameId) {
+    cancelAnimationFrame(state.chartAnimationFrameId);
+  }
+  
+  state.chartAnimationStartTime = Date.now();
+  animateChart();
 }
 
-function drawResponseChart() {
+function animateChart() {
+  const elapsed = Date.now() - state.chartAnimationStartTime;
+  const progress = Math.min(elapsed / CONFIG.CHART_ANIMATION_DURATION, 1);
+  
+  // Easing function for smooth animation (ease-out cubic)
+  const eased = 1 - Math.pow(1 - progress, 3);
+  
+  drawResponseChart(eased);
+  
+  if (progress < 1) {
+    state.chartAnimationFrameId = requestAnimationFrame(animateChart);
+  } else {
+    state.chartAnimationFrameId = null;
+  }
+}
+
+function drawResponseChart(interpolation = 1) {
   if (!state.responseChart) return;
 
   try {
@@ -907,9 +1296,15 @@ function drawResponseChart() {
       state.responseChart.stroke();
     }
 
-    const maxValue = Math.max(...state.chartData, 50);
+    // Interpolate between previous and current values for smooth animation
+    const interpolatedData = state.chartData.map((value, index) => {
+      const prevValue = state.chartDataPrevious[index] || value;
+      return prevValue + (value - prevValue) * interpolation;
+    });
 
-    if (state.chartData.length > 0) {
+    const maxValue = Math.max(...interpolatedData, 50);
+
+    if (interpolatedData.length > 0) {
       state.responseChart.strokeStyle = lineColor;
       state.responseChart.lineWidth = 2.5;
       state.responseChart.lineCap = 'round';
@@ -919,27 +1314,22 @@ function drawResponseChart() {
       gradient.addColorStop(0, state.isDarkMode ? 'rgba(246, 173, 85, 0.2)' : 'rgba(66, 100, 251, 0.2)');
       gradient.addColorStop(1, state.isDarkMode ? 'rgba(246, 173, 85, 0)' : 'rgba(66, 100, 251, 0)');
 
-      const points = state.chartData.map((value, index) => ({
-        x: (width / (state.chartData.length - 1)) * index,
+      const points = interpolatedData.map((value, index) => ({
+        x: (width / Math.max(interpolatedData.length - 1, 1)) * index,
         y: height - (value / maxValue) * height
       }));
 
-      // Draw filled area
+      // Draw filled area with Catmull-Rom spline
       state.responseChart.beginPath();
       
       if (points.length > 0) {
         state.responseChart.moveTo(points[0].x, points[0].y);
 
-        for (let i = 0; i < points.length - 1; i++) {
-          const xMid = (points[i].x + points[i + 1].x) / 2;
-          const yMid = (points[i].y + points[i + 1].y) / 2;
-          state.responseChart.quadraticCurveTo(points[i].x, points[i].y, xMid, yMid);
-        }
-
-        if (points.length > 1) {
-          const lastPoint = points[points.length - 1];
-          const secondLastPoint = points[points.length - 2];
-          state.responseChart.quadraticCurveTo(secondLastPoint.x, secondLastPoint.y, lastPoint.x, lastPoint.y);
+        if (points.length > 2) {
+          // Use Catmull-Rom spline for smoother curves
+          drawCatmullRomSpline(state.responseChart, points, CONFIG.CHART_TENSION);
+        } else if (points.length === 2) {
+          state.responseChart.lineTo(points[1].x, points[1].y);
         }
       }
 
@@ -949,22 +1339,16 @@ function drawResponseChart() {
       state.responseChart.fillStyle = gradient;
       state.responseChart.fill();
 
-      // Draw line
+      // Draw line with same smooth curve
       state.responseChart.beginPath();
       
       if (points.length > 0) {
         state.responseChart.moveTo(points[0].x, points[0].y);
 
-        for (let i = 0; i < points.length - 1; i++) {
-          const xMid = (points[i].x + points[i + 1].x) / 2;
-          const yMid = (points[i].y + points[i + 1].y) / 2;
-          state.responseChart.quadraticCurveTo(points[i].x, points[i].y, xMid, yMid);
-        }
-
-        if (points.length > 1) {
-          const lastPoint = points[points.length - 1];
-          const secondLastPoint = points[points.length - 2];
-          state.responseChart.quadraticCurveTo(secondLastPoint.x, secondLastPoint.y, lastPoint.x, lastPoint.y);
+        if (points.length > 2) {
+          drawCatmullRomSpline(state.responseChart, points, CONFIG.CHART_TENSION);
+        } else if (points.length === 2) {
+          state.responseChart.lineTo(points[1].x, points[1].y);
         }
       }
       
@@ -978,6 +1362,34 @@ function drawResponseChart() {
     state.responseChart.fillText('0ms', 4, height - 2);
   } catch (error) {
     console.error('Error drawing chart:', error);
+  }
+}
+
+/**
+ * Draw a smooth Catmull-Rom spline through the points
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {Array} points - Array of {x, y} points
+ * @param {number} tension - Curve tension (0-1)
+ */
+function drawCatmullRomSpline(ctx, points, tension = 0.5) {
+  if (points.length < 2) return;
+  
+  const alpha = tension;
+  
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+    
+    // Calculate control points for Bezier curve
+    const cp1x = p1.x + (p2.x - p0.x) / 6 * alpha;
+    const cp1y = p1.y + (p2.y - p0.y) / 6 * alpha;
+    
+    const cp2x = p2.x - (p3.x - p1.x) / 6 * alpha;
+    const cp2y = p2.y - (p3.y - p1.y) / 6 * alpha;
+    
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
   }
 }
 
@@ -1179,3 +1591,73 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason);
   showError('An unexpected error occurred.');
 });
+
+/**
+ * Queue a label for later display when space becomes available
+ * @param {Object} destination - Destination location data
+ * @param {Object} data - DNS query data
+ */
+function queueLabel(destination, data) {
+  // Prioritize blocked queries
+  const priority = (CONFIG.LABEL_PRIORITY_BLOCKED && data.filtered) ? 1 : 0;
+  
+  state.labelQueue.push({
+    destination,
+    data,
+    priority,
+    timestamp: Date.now()
+  });
+  
+  // Keep queue bounded (max 50 items)
+  if (state.labelQueue.length > 50) {
+    // Remove oldest low-priority items first
+    const lowPriorityIndex = state.labelQueue.findIndex(item => item.priority === 0);
+    if (lowPriorityIndex !== -1) {
+      state.labelQueue.splice(lowPriorityIndex, 1);
+    } else {
+      state.labelQueue.shift(); // Remove oldest if all are high priority
+    }
+  }
+}
+
+/**
+ * Process queued labels when space becomes available
+ */
+function processLabelQueue() {
+  if (state.labelQueue.length === 0) return;
+  if (state.activeLabels >= CONFIG.MAX_CONCURRENT_LABELS) return;
+  
+  // Sort by priority (highest first), then by age (oldest first)
+  state.labelQueue.sort((a, b) => {
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority;
+    }
+    return a.timestamp - b.timestamp;
+  });
+  
+  // Display next queued label
+  const nextLabel = state.labelQueue.shift();
+  if (nextLabel) {
+    addArcLabel(nextLabel.destination, nextLabel.data);
+  }
+}
+
+/**
+ * Calculate adaptive lifetime based on current congestion
+ * @returns {number} - Lifetime in milliseconds
+ */
+function calculateAdaptiveLifetime() {
+  const congestionRatio = state.activeLabels / CONFIG.MAX_CONCURRENT_LABELS;
+  
+  if (congestionRatio > 0.8) {
+    // High congestion: use minimum lifetime
+    return CONFIG.LABEL_LIFETIME_MIN;
+  } else if (congestionRatio > 0.5) {
+    // Medium congestion: scale between min and normal
+    const range = CONFIG.LABEL_LIFETIME - CONFIG.LABEL_LIFETIME_MIN;
+    return CONFIG.LABEL_LIFETIME_MIN + (range * (1 - congestionRatio) * 2);
+  } else {
+    // Low congestion: use normal lifetime
+    return CONFIG.LABEL_LIFETIME;
+  }
+}

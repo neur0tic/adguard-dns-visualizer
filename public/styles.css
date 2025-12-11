@@ -323,6 +323,16 @@ body.sidebar-right .sidebar {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     animation: labelFadeIn 0.3s ease-in, labelFadeOut 0.5s ease-out 4.5s forwards;
     white-space: nowrap;
+    transition: opacity 0.3s ease-in-out;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* Priority labels (blocked queries) */
+.arc-label-priority {
+    border-color: rgba(252, 129, 129, 0.6);
+    box-shadow: 0 4px 12px rgba(252, 129, 129, 0.3), 0 0 20px rgba(252, 129, 129, 0.2);
+    z-index: 6;
 }
 
 .arc-label .label-domain {
@@ -342,13 +352,36 @@ body.sidebar-right .sidebar {
     font-weight: 600;
 }
 
+/* Label Connector Lines */
+.label-connector {
+    animation: connectorFadeIn 0.3s ease-in, connectorFadeOut 0.5s ease-out 4.5s forwards;
+}
+
+@keyframes connectorFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes connectorFadeOut {
+    to { opacity: 0; }
+}
+
 @keyframes labelFadeIn {
-    from { opacity: 0; transform: scale(0.85); }
-    to { opacity: 1; transform: scale(1); }
+    from { 
+        opacity: 0; 
+        transform: scale(0.85) translateY(10px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: scale(1) translateY(0); 
+    }
 }
 
 @keyframes labelFadeOut {
-    to { opacity: 0; transform: scale(0.85); }
+    to { 
+        opacity: 0; 
+        transform: scale(0.85) translateY(-10px); 
+    }
 }
 
 /* DNS Type Legend */
@@ -641,6 +674,8 @@ body.light-mode .arc-label {
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(0, 0, 0, 0.15);
     color: #333;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 body.light-mode .arc-label .label-domain {
