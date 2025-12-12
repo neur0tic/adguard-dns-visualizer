@@ -64,6 +64,7 @@ const state = {
   totalQueries: 0,
   blockedQueries: 0,
   responseTimes: [],
+  upstreamTimes: [], // Track upstream DNS server response times
   logEntries: [],
   responseChart: null,
   chartData: [],
@@ -353,8 +354,8 @@ function handleStats(event) {
 }
 
 function handleDNSQuery(event) {
-  // Validate event data
-  if (!event.data || !event.source || !event.destination) {
+  // Validate event data - allow null destination for blocked queries
+  if (!event.data || !event.source) {
     console.warn('Invalid DNS query event:', event);
     return;
   }
@@ -379,7 +380,7 @@ function handleDNSQuery(event) {
     timestamp: new Date(event.timestamp)
   });
 
-  // Create arc if we have space
+  // Create arc only if we have a destination (resolved queries)
   if (event.destination && state.activeArcs.length < CONFIG.MAX_CONCURRENT_ARCS) {
     createArc(event.source, event.destination, event.data);
   }
@@ -395,6 +396,17 @@ function handleDNSQuery(event) {
     }
     
     updateResponseChartDebounced(elapsed);
+  }
+  
+  // Track upstream response times
+  const upstreamElapsed = parseFloat(event.data.upstream);
+  if (!isNaN(upstreamElapsed) && upstreamElapsed > 0) {
+    state.upstreamTimes.push(upstreamElapsed);
+    
+    // Keep array bounded
+    if (state.upstreamTimes.length > 100) {
+      state.upstreamTimes.shift();
+    }
   }
 }
 
@@ -1173,6 +1185,7 @@ function updateStats() {
     const statTotal = document.getElementById('stat-total');
     const statBlocked = document.getElementById('stat-blocked');
     const statAvg = document.getElementById('stat-avg');
+    const statUpstreamAvg = document.getElementById('stat-upstream-avg');
 
     animateStat(statActive, state.activeArcs.length.toString());
     animateStat(statTotal, state.totalQueries.toString());
@@ -1189,6 +1202,20 @@ function updateStats() {
       }
     } else {
       animateStat(statAvg, '0ms');
+    }
+    
+    // Update upstream response time average
+    if (state.upstreamTimes.length > 0) {
+      const sum = state.upstreamTimes.reduce((a, b) => a + b, 0);
+      const avg = sum / state.upstreamTimes.length;
+      
+      if (!isNaN(avg) && isFinite(avg)) {
+        animateStat(statUpstreamAvg, `${avg.toFixed(1)}ms`);
+      } else {
+        animateStat(statUpstreamAvg, '0ms');
+      }
+    } else {
+      animateStat(statUpstreamAvg, '0ms');
     }
   } catch (error) {
     console.error('Error updating stats:', error);

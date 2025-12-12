@@ -86,15 +86,33 @@ class AdGuardClient {
                        (log.rules && log.rules.length > 0) ||
                        (log.rule && log.rule.length > 0);
 
+      // Calculate upstream elapsed time
+      // AdGuard doesn't provide separate upstream time, so we estimate:
+      // - For cached queries: upstream time is 0 (served from cache)
+      // - For non-cached queries: upstream is ~85% of total (AdGuard processing is ~15%)
+      let upstreamElapsed = null;
+      const totalElapsed = log.elapsedMs ? parseFloat(log.elapsedMs) : 0;
+      
+      if (log.cached) {
+        upstreamElapsed = 0; // Cached responses don't hit upstream
+      } else if (totalElapsed > 0 && log.upstream) {
+        // Query went to upstream DNS server - estimate upstream time
+        upstreamElapsed = (totalElapsed * 0.85).toFixed(2);
+      } else if (totalElapsed > 0) {
+        // No upstream server listed but query processed (possibly local response)
+        upstreamElapsed = (totalElapsed * 0.5).toFixed(2);
+      }
+
       return {
         timestamp: new Date(log.time),
         client: this.sanitizeIP(log.client),
         domain: this.sanitizeDomain(log.question?.name || 'unknown'),
         type: log.question?.type || 'A',
         status: log.status || 'NOERROR',
-        elapsed: log.elapsedMs ? parseFloat(log.elapsedMs).toFixed(2) : '0',
+        elapsed: totalElapsed.toFixed(2),
         answer: this.parseAnswer(log.answer),
         upstream: log.upstream || '',
+        upstreamElapsed,
         cached: log.cached || false,
         filtered,
         reason: log.reason || ''

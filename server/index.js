@@ -168,10 +168,8 @@ async function pollDNSLogs() {
       processedIds.delete(firstId);
     }
 
-    // Process entry if it has valid answer IPs
-    if (entry.answer && entry.answer.length > 0) {
-      await processDNSEntry(entry);
-    }
+    // Process entry - handle both blocked and resolved queries
+    await processDNSEntry(entry);
   }
 }
 
@@ -192,7 +190,31 @@ async function pollStats() {
 async function processDNSEntry(entry) {
   const source = geoService.getSource();
 
-  // Process each IP address in the answer
+  // Handle blocked/filtered queries (no answer IPs)
+  if (entry.filtered || !entry.answer || entry.answer.length === 0) {
+    // For blocked queries, use a special "null island" location (0, 0)
+    // This allows blocked queries to still appear in logs without map visualization
+    broadcast({
+      type: 'dns_query',
+      timestamp: entry.timestamp.toISOString(),
+      source,
+      destination: null, // No destination for blocked queries
+      data: {
+        domain: entry.domain,
+        ip: 'Blocked', // Mark as blocked
+        queryType: entry.type,
+        elapsed: entry.elapsed,
+        upstream: entry.upstreamElapsed,
+        cached: entry.cached,
+        filtered: entry.filtered,
+        clientIp: entry.client,
+        status: entry.status
+      }
+    });
+    return;
+  }
+
+  // Process each IP address in the answer for resolved queries
   for (const ip of entry.answer) {
     const destination = geoService.lookup(ip);
 
@@ -209,6 +231,7 @@ async function processDNSEntry(entry) {
         ip,
         queryType: entry.type,
         elapsed: entry.elapsed,
+        upstream: entry.upstreamElapsed,
         cached: entry.cached,
         filtered: entry.filtered,
         clientIp: entry.client,
