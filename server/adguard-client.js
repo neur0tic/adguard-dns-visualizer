@@ -81,10 +81,13 @@ class AdGuardClient {
     }
 
     return logs.map(log => {
-      // Check if query was filtered/blocked
-      const filtered = (log.reason && log.reason.startsWith('Filtered')) ||
-                       (log.rules && log.rules.length > 0) ||
-                       (log.rule && log.rule.length > 0);
+      // Check if query was filtered/blocked - improved detection
+      // AdGuard marks blocked queries with reasons starting with "Filtered"
+      const filtered = Boolean(
+        (log.reason && log.reason.startsWith('Filtered')) ||
+        (log.rules && log.rules.length > 0) ||
+        (log.rule && log.rule.length > 0)
+      );
 
       // Calculate upstream elapsed time
       // AdGuard doesn't provide separate upstream time, so we estimate:

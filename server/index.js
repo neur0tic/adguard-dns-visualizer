@@ -101,6 +101,7 @@ let statsPollingInterval = null;
 // Track processed DNS entries to prevent duplicates (with size limit)
 const processedIds = new Set();
 const MAX_PROCESSED_IDS = config.maxProcessedIds;
+let lastPollTime = Date.now(); // Track last successful poll time
 
 // Start/Stop polling based on active connections
 function startPolling() {
@@ -153,12 +154,34 @@ function stopPolling() {
  */
 async function pollDNSLogs() {
   const logs = await adguardClient.getQueryLog();
+  
+  const currentPollTime = Date.now();
+  const timeSinceLastPoll = currentPollTime - lastPollTime;
+  
+  // Debug: Count filtered/blocked entries
+  const blockedCount = logs.filter(entry => entry.filtered).length;
+  const totalCount = logs.length;
+  
+  // Only process entries that are newer than our last poll (with 2 second buffer)
+  const cutoffTime = new Date(lastPollTime - 2000); // 2 second overlap to avoid missing entries
+  const newEntries = logs.filter(entry => entry.timestamp > cutoffTime);
+  
+  if (totalCount > 0) {
+    console.log(`📊 Fetched ${totalCount} DNS entries (${blockedCount} blocked) - ${newEntries.length} new entries since last poll (${(timeSinceLastPoll/1000).toFixed(1)}s ago)`);
+  }
+  
+  lastPollTime = currentPollTime;
+  let processedCount = 0;
+  let skippedDuplicates = 0;
 
-  for (const entry of logs) {
+  for (const entry of newEntries) {
     // Create unique ID for deduplication
     const entryId = `${entry.timestamp.getTime()}-${entry.domain}-${entry.client}`;
 
-    if (processedIds.has(entryId)) continue;
+    if (processedIds.has(entryId)) {
+      skippedDuplicates++;
+      continue;
+    }
 
     // Add to processed set with size limit
     processedIds.add(entryId);
@@ -170,6 +193,11 @@ async function pollDNSLogs() {
 
     // Process entry - handle both blocked and resolved queries
     await processDNSEntry(entry);
+    processedCount++;
+  }
+  
+  if (processedCount > 0 || skippedDuplicates > 0) {
+    console.log(`✅ Processed ${processedCount} new queries (skipped ${skippedDuplicates} duplicates)`);
   }
 }
 
@@ -192,6 +220,11 @@ async function processDNSEntry(entry) {
 
   // Handle blocked/filtered queries (no answer IPs)
   if (entry.filtered || !entry.answer || entry.answer.length === 0) {
+    // Debug log first few blocked entries
+    if (Math.random() < 0.1) { // Log 10% of blocked queries
+      console.log(`🚫 Blocked query: ${entry.domain} (filtered: ${entry.filtered}, reason: ${entry.reason})`);
+    }
+    
     // For blocked queries, use a special "null island" location (0, 0)
     // This allows blocked queries to still appear in logs without map visualization
     broadcast({

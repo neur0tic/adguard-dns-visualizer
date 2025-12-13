@@ -364,6 +364,10 @@ function handleDNSQuery(event) {
 
   if (event.data.filtered) {
     state.blockedQueries++;
+    // Debug: Log every 10th blocked query
+    if (state.blockedQueries % 10 === 0) {
+      console.log(`🚫 Client: Blocked query #${state.blockedQueries} - ${event.data.domain}`);
+    }
   }
 
   updateStats();
