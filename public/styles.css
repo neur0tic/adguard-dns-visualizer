@@ -550,10 +550,16 @@ body.sidebar-hidden .sidebar-hide-toggle {
     letter-spacing: 0.3px;
 }
 
-/* Theme Toggle - Minimal Floating Button */
-.theme-toggle {
+/* ========================================
+   TOGGLE BUTTONS - SHARED STYLES
+   ======================================== */
+
+/* Base styles for all toggle button containers */
+.theme-toggle,
+.sidebar-toggle,
+.source-location-toggle,
+.layout-toggle {
     position: fixed;
-    top: 16px;
     right: 16px;
     background: rgba(15, 23, 42, 0.9);
     backdrop-filter: blur(40px);
@@ -567,6 +573,55 @@ body.sidebar-hidden .sidebar-hide-toggle {
     z-index: 101;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover state for all toggle containers */
+.theme-toggle:hover,
+.sidebar-toggle:hover,
+.source-location-toggle:hover,
+.layout-toggle:hover {
+    background: rgba(30, 41, 59, 0.95);
+    border-color: rgba(148, 163, 184, 0.25);
+    transform: translateY(-2px);
+    box-shadow:
+        0 6px 24px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(148, 163, 184, 0.1);
+}
+
+/* Base button styles for all toggles */
+.theme-toggle button,
+.sidebar-toggle button,
+.source-location-toggle button,
+.layout-toggle button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+    color: #e2e8f0;
+}
+
+/* SVG icon styles */
+.theme-toggle button svg,
+.sidebar-toggle button svg,
+.source-location-toggle button svg,
+.layout-toggle button svg {
+    color: #e2e8f0;
+    stroke: currentColor;
+}
+
+/* Hover state for all toggle buttons */
+.theme-toggle button:hover,
+.source-location-toggle button:hover,
+.layout-toggle button:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Theme Toggle - Specific positioning */
+.theme-toggle {
+    top: 16px;
 }
 
 /* Move theme toggle to top-left when sidebar is on right */
@@ -585,76 +640,23 @@ body.sidebar-right .theme-toggle {
 }
 
 .theme-toggle button {
-    background: none;
-    border: none;
     font-size: 16px;
-    cursor: pointer;
-    padding: 0;
-    opacity: 0.8;
-    transition: all 0.2s ease;
-    color: #e2e8f0;
 }
 
-.theme-toggle button svg {
-    color: #e2e8f0;
-    stroke: currentColor;
-}
-
-.theme-toggle button:hover {
-    opacity: 1;
-    transform: scale(1.1);
-}
-
-/* Sidebar Position Toggle */
+/* Sidebar Position Toggle - Specific positioning */
 .sidebar-toggle {
-    position: fixed;
     top: 64px;
-    right: 16px;
-    background: rgba(15, 23, 42, 0.9);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.15);
-    box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(148, 163, 184, 0.05);
-    z-index: 101;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Move sidebar toggle to top-left when sidebar is on right */
 body.sidebar-right .sidebar-toggle {
     right: auto;
     left: 16px;
-    top: 64px;
-}
-
-.sidebar-toggle:hover {
-    background: rgba(30, 41, 59, 0.95);
-    border-color: rgba(148, 163, 184, 0.25);
-    transform: translateY(-2px);
-    box-shadow:
-        0 6px 24px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(148, 163, 184, 0.1);
 }
 
 .sidebar-toggle button {
-    background: none;
-    border: none;
     font-size: 14px;
-    cursor: pointer;
-    padding: 0;
-    opacity: 0.8;
-    transition: all 0.2s ease;
-    color: #e2e8f0;
     filter: drop-shadow(0 0 2px rgba(148, 163, 184, 0.3));
-}
-
-.sidebar-toggle button svg {
-    color: #e2e8f0;
-    stroke: currentColor;
 }
 
 .sidebar-toggle button:hover {
@@ -774,23 +776,9 @@ body.sidebar-right.sidebar-hidden .sidebar-hide-toggle button {
     transform: rotate(0deg);
 }
 
-/* Source Location Toggle - Floating Corner Button */
+/* Source Location Toggle - Specific positioning */
 .source-location-toggle {
-    position: fixed;
     top: 112px;
-    right: 16px;
-    background: rgba(15, 23, 42, 0.9);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.15);
-    box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(148, 163, 184, 0.05);
-    z-index: 101;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Move to top-left when sidebar is on right */
@@ -799,34 +787,8 @@ body.sidebar-right .source-location-toggle {
     left: 16px;
 }
 
-.source-location-toggle:hover {
-    background: rgba(30, 41, 59, 0.95);
-    border-color: rgba(148, 163, 184, 0.25);
-    transform: translateY(-2px);
-    box-shadow:
-        0 6px 24px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(148, 163, 184, 0.1);
-}
-
 .source-location-toggle button {
-    background: none;
-    border: none;
     font-size: 16px;
-    cursor: pointer;
-    padding: 0;
-    opacity: 0.8;
-    transition: all 0.2s ease;
-    color: #e2e8f0;
-}
-
-.source-location-toggle button svg {
-    color: #e2e8f0;
-    stroke: currentColor;
-}
-
-.source-location-toggle button:hover {
-    opacity: 1;
-    transform: scale(1.1);
 }
 
 /* Position adjustments when sidebar is hidden */
@@ -840,23 +802,9 @@ body.sidebar-hidden.sidebar-right .source-location-toggle {
     top: 154px;
 }
 
-/* Layout Preset Toggle - Floating Corner Button */
+/* Layout Preset Toggle - Specific positioning */
 .layout-toggle {
-    position: fixed;
     top: 160px;
-    right: 16px;
-    background: rgba(15, 23, 42, 0.9);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.15);
-    box-shadow:
-        0 4px 16px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(148, 163, 184, 0.05);
-    z-index: 101;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Move to top-left when sidebar is on right */
@@ -865,34 +813,8 @@ body.sidebar-right .layout-toggle {
     left: 16px;
 }
 
-.layout-toggle:hover {
-    background: rgba(30, 41, 59, 0.95);
-    border-color: rgba(148, 163, 184, 0.25);
-    transform: translateY(-2px);
-    box-shadow:
-        0 6px 24px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(148, 163, 184, 0.1);
-}
-
 .layout-toggle button {
-    background: none;
-    border: none;
     font-size: 16px;
-    cursor: pointer;
-    padding: 0;
-    opacity: 0.8;
-    transition: all 0.2s ease;
-    color: #e2e8f0;
-}
-
-.layout-toggle button svg {
-    color: #e2e8f0;
-    stroke: currentColor;
-}
-
-.layout-toggle button:hover {
-    opacity: 1;
-    transform: scale(1.1);
 }
 
 /* Position adjustments when sidebar is hidden */
@@ -1041,8 +963,11 @@ body.light-mode .legend-label {
     color: #475569;
 }
 
+/* Light mode toggle button containers */
 body.light-mode .theme-toggle,
-body.light-mode .sidebar-toggle {
+body.light-mode .sidebar-toggle,
+body.light-mode .source-location-toggle,
+body.light-mode .layout-toggle {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(148, 163, 184, 0.2);
     box-shadow:
@@ -1050,8 +975,11 @@ body.light-mode .sidebar-toggle {
         inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
+/* Light mode toggle button hover states */
 body.light-mode .theme-toggle:hover,
-body.light-mode .sidebar-toggle:hover {
+body.light-mode .sidebar-toggle:hover,
+body.light-mode .source-location-toggle:hover,
+body.light-mode .layout-toggle:hover {
     background: rgba(255, 255, 255, 1);
     border-color: rgba(148, 163, 184, 0.3);
     box-shadow:
@@ -1059,22 +987,20 @@ body.light-mode .sidebar-toggle:hover {
         inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
-body.light-mode .theme-toggle button {
+/* Light mode button text color */
+body.light-mode .theme-toggle button,
+body.light-mode .sidebar-toggle button,
+body.light-mode .source-location-toggle button,
+body.light-mode .layout-toggle button {
     filter: none;
     color: #475569;
 }
 
-body.light-mode .theme-toggle button svg {
-    color: #475569;
-    stroke: currentColor;
-}
-
-body.light-mode .sidebar-toggle button {
-    color: #475569;
-    filter: none;
-}
-
-body.light-mode .sidebar-toggle button svg {
+/* Light mode SVG icon color */
+body.light-mode .theme-toggle button svg,
+body.light-mode .sidebar-toggle button svg,
+body.light-mode .source-location-toggle button svg,
+body.light-mode .layout-toggle button svg {
     color: #475569;
     stroke: currentColor;
 }
@@ -2422,58 +2348,6 @@ body.sidebar-right.layout-minimal .sidebar-hide-toggle {
     left: auto;
 }
 
-/* Light mode adjustments for layout toggle */
-body.light-mode .layout-toggle {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(148, 163, 184, 0.2);
-    box-shadow:
-        0 4px 16px rgba(100, 116, 139, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-body.light-mode .layout-toggle:hover {
-    background: rgba(255, 255, 255, 1);
-    border-color: rgba(148, 163, 184, 0.3);
-    box-shadow:
-        0 6px 24px rgba(100, 116, 139, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-body.light-mode .layout-toggle button {
-    color: #475569;
-    filter: none;
-}
-
-body.light-mode .layout-toggle button svg {
-    color: #475569;
-    stroke: currentColor;
-}
-
-body.light-mode .source-location-toggle {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(148, 163, 184, 0.2);
-    box-shadow:
-        0 4px 16px rgba(100, 116, 139, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-body.light-mode .source-location-toggle:hover {
-    background: rgba(255, 255, 255, 1);
-    border-color: rgba(148, 163, 184, 0.3);
-    box-shadow:
-        0 6px 24px rgba(100, 116, 139, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-body.light-mode .source-location-toggle button {
-    color: #475569;
-    filter: none;
-}
-
-body.light-mode .source-location-toggle button svg {
-    color: #475569;
-    stroke: currentColor;
-}
 
 body.light-mode .modal-footer {
     border-top-color: rgba(148, 163, 184, 0.15);
