@@ -749,6 +749,18 @@ body.sidebar-right .sidebar-hide-toggle button {
     transform: rotate(180deg);
 }
 
+body.sidebar-hidden .sidebar {
+    transform: translateX(-100%);
+}
+
+body.sidebar-right.sidebar-hidden .sidebar {
+    transform: translateX(100%);
+}
+
+body.sidebar-hidden .sidebar-hide-toggle button {
+    transform: rotate(180deg);
+}
+
 body.sidebar-right.sidebar-hidden .sidebar-hide-toggle button {
     transform: rotate(0deg);
 }
