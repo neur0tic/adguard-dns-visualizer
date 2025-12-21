@@ -8,11 +8,10 @@ const CONFIG = {
   MAX_CONCURRENT_ARCS: 100,
   MAX_LOG_ENTRIES: 15,
   MAX_CONCURRENT_LABELS: 12,
-  ARC_ANIMATION_DURATION: 200,
+  ARC_ANIMATION_DURATION: 100,
   LABEL_LIFETIME: 5000,
   LABEL_LIFETIME_MIN: 3000,
   LABEL_PADDING: 15,
-  LABEL_MAX_OFFSET: 150,
   LABEL_SEARCH_RADIUS: 200,
   LABEL_ANGLE_STEPS: 16,
   LABEL_QUEUE_ENABLED: true,
@@ -20,7 +19,6 @@ const CONFIG = {
   ARC_TRAIL_COUNT: 3,
   ARC_TRAIL_LIFETIME: 2000,
   CHART_DATA_POINTS: 50,
-  CHART_UPDATE_DEBOUNCE: 16,
   CHART_ANIMATION_DURATION: 300,
   CHART_TENSION: 0.4,
   RECONNECT_BASE_DELAY: 1000,
@@ -70,7 +68,8 @@ const state = {
   sourcePulseActive: false,
   reconnectAttempts: 0,
   reconnectTimeoutId: null,
-  statsUpdateIntervalId: null
+  statsUpdateIntervalId: null,
+  filterLocal: false
 };
 
 // ============================================================================
@@ -99,10 +98,19 @@ function setupEventListeners() {
   const themeToggle = document.getElementById('theme-toggle');
   const sidebarToggle = document.getElementById('sidebar-toggle');
   const sidebarHideToggle = document.getElementById('sidebar-hide-toggle');
-  
+
   if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
   if (sidebarToggle) sidebarToggle.addEventListener('click', toggleSidebarPosition);
   if (sidebarHideToggle) sidebarHideToggle.addEventListener('click', toggleSidebarVisibility);
+
+  const filterLocalToggle = document.getElementById('filter-local-toggle');
+  if (filterLocalToggle) {
+    filterLocalToggle.addEventListener('change', (e) => {
+      state.filterLocal = e.target.checked;
+      savePreference('filterLocal', state.filterLocal);
+    });
+  }
+
   window.addEventListener('beforeunload', cleanup);
 }
 
@@ -113,10 +121,17 @@ function loadPreferences() {
       state.isSidebarRight = true;
       document.body.classList.add('sidebar-right');
     }
-    
+
     const savedSidebarHidden = localStorage.getItem('sidebarHidden');
     if (savedSidebarHidden === 'true') {
       document.body.classList.add('sidebar-hidden');
+    }
+
+    const savedFilterLocal = localStorage.getItem('filterLocal');
+    if (savedFilterLocal === 'true') {
+      state.filterLocal = true;
+      const toggle = document.getElementById('filter-local-toggle');
+      if (toggle) toggle.checked = true;
     }
   } catch (error) {
     console.warn('Failed to load preferences from localStorage:', error);
@@ -189,20 +204,20 @@ function addPulseSource() {
 
 function animatePulse() {
   let pulsePhase = 0;
-  
+
   function animate() {
     if (!state.map || !state.map.getLayer('pulse-layer')) return;
-    
+
     pulsePhase += 0.02;
     const scale = 1 + Math.sin(pulsePhase) * 0.5;
     const opacity = 0.8 - Math.abs(Math.sin(pulsePhase)) * 0.6;
-    
+
     state.map.setPaintProperty('pulse-layer', 'circle-radius', 20 * scale);
     state.map.setPaintProperty('pulse-layer', 'circle-opacity', opacity);
-    
+
     requestAnimationFrame(animate);
   }
-  
+
   animate();
 }
 
@@ -229,7 +244,7 @@ function connectWebSocket() {
 
   try {
     state.ws = new WebSocket(wsUrl);
-    
+
     state.ws.onopen = onWebSocketOpen;
     state.ws.onmessage = onWebSocketMessage;
     state.ws.onerror = onWebSocketError;
@@ -249,13 +264,13 @@ function onWebSocketOpen() {
 function onWebSocketMessage(event) {
   try {
     const data = JSON.parse(event.data);
-    
+
     // Validate message structure
     if (!data || typeof data !== 'object' || !data.type) {
       console.warn('Invalid message format:', data);
       return;
     }
-    
+
     handleMessage(data);
   } catch (error) {
     console.error('Error parsing WebSocket message:', error);
@@ -270,7 +285,7 @@ function onWebSocketError(error) {
 function onWebSocketClose(event) {
   console.log('WebSocket disconnected:', event.code, event.reason);
   updateStatus('disconnected', 'Disconnected');
-  
+
   if (event.code !== 1000) { // Not a normal closure
     scheduleReconnect();
   }
@@ -278,23 +293,23 @@ function onWebSocketClose(event) {
 
 function scheduleReconnect() {
   if (state.reconnectTimeoutId) return;
-  
+
   if (state.reconnectAttempts >= CONFIG.RECONNECT_MAX_ATTEMPTS) {
     console.error('Max reconnection attempts reached');
     showError('Connection lost. Please refresh the page.');
     return;
   }
-  
+
   state.reconnectAttempts++;
-  
+
   // Exponential backoff
   const delay = Math.min(
     CONFIG.RECONNECT_BASE_DELAY * Math.pow(2, state.reconnectAttempts - 1),
     CONFIG.RECONNECT_MAX_DELAY
   );
-  
+
   console.log(`Reconnecting in ${delay}ms (attempt ${state.reconnectAttempts}/${CONFIG.RECONNECT_MAX_ATTEMPTS})`);
-  
+
   state.reconnectTimeoutId = setTimeout(() => {
     state.reconnectTimeoutId = null;
     connectWebSocket();
@@ -327,7 +342,7 @@ function handleMessage(data) {
 
 function handleStats(event) {
   const statAdguardAvg = document.getElementById('stat-adguard-avg');
-  
+
   if (statAdguardAvg && typeof event.data?.avgProcessingTime === 'number') {
     const avgTime = event.data.avgProcessingTime.toFixed(2);
     animateStat(statAdguardAvg, `${avgTime}ms`);
@@ -337,6 +352,11 @@ function handleStats(event) {
 function handleDNSQuery(event) {
   if (!event.data || !event.source) {
     console.warn('Invalid DNS query event:', event);
+    return;
+  }
+
+  // Filter .local traffic if enabled
+  if (state.filterLocal && event.data.domain && event.data.domain.toLowerCase().endsWith('.local')) {
     return;
   }
 
@@ -379,13 +399,13 @@ function handleDNSQuery(event) {
 
 function createArc(source, destination, data) {
   const arcId = `arc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
+
   state.activeArcs.push(arcId);
-  
+
   const arcColor = getColorForDNSType(data.queryType || data.type);
-  
+
   triggerSourcePulse();
-  
+
   const lineString = createArcGeometry(
     [source.lng, source.lat],
     [destination.lng, destination.lat]
@@ -462,7 +482,7 @@ function animateArc(arcId, lineString, destination, data, arcColor) {
 
     try {
       const currentCoordinates = lineString.coordinates.slice(0, currentStep);
-      
+
       if (state.map.getSource(arcId)) {
         state.map.getSource(arcId).setData({
           type: 'Feature',
@@ -485,7 +505,7 @@ function createArcTrail(lineString, arcColor) {
     setTimeout(() => {
       const trailId = `trail-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const opacity = 0.6 - (i * 0.2);
-      
+
       try {
         state.map.addSource(trailId, {
           type: 'geojson',
@@ -561,7 +581,7 @@ function removeArc(arcId) {
 
 function createDestinationGlow(destination, color) {
   const glowId = `glow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
+
   try {
     state.map.addSource(glowId, {
       type: 'geojson',
@@ -653,17 +673,17 @@ function animateGlow(glowId, layer1, layer2) {
 
 function triggerSourcePulse() {
   if (state.sourcePulseActive) return;
-  
+
   state.sourcePulseActive = true;
-  
+
   try {
     if (state.map.getLayer('pulse-layer')) {
       const originalRadius = state.map.getPaintProperty('pulse-layer', 'circle-radius');
       const originalOpacity = state.map.getPaintProperty('pulse-layer', 'circle-opacity');
-      
+
       state.map.setPaintProperty('pulse-layer', 'circle-radius', 35);
       state.map.setPaintProperty('pulse-layer', 'circle-opacity', 1);
-      
+
       setTimeout(() => {
         try {
           if (state.map.getLayer('pulse-layer')) {
@@ -678,7 +698,7 @@ function triggerSourcePulse() {
   } catch (error) {
     console.warn('Error triggering pulse:', error);
   }
-  
+
   setTimeout(() => {
     state.sourcePulseActive = false;
   }, CONFIG.SOURCE_PULSE_THROTTLE);
@@ -702,7 +722,7 @@ function addArcLabel(destination, data) {
     label.style.opacity = '0';
 
     if (data.filtered) label.classList.add('arc-label-priority');
-    
+
     const domain = sanitizeHTML(data.domain || 'Unknown');
     const ip = data.ip ? sanitizeHTML(data.ip) : '';
     const queryType = sanitizeHTML(data.queryType || data.type || 'A');
@@ -744,13 +764,13 @@ function addArcLabel(destination, data) {
       Math.pow(position.x - point.x, 2) +
       Math.pow(position.y - point.y, 2)
     );
-    
+
     let connector = null;
     if (distance > 50) {
       connector = createLabelConnector(
-        point.x, 
-        point.y, 
-        position.x + labelWidth / 2, 
+        point.x,
+        point.y,
+        position.x + labelWidth / 2,
         position.y + labelHeight / 2
       );
     }
@@ -801,7 +821,7 @@ function findNonOverlappingPosition(x, y, width, height) {
   for (const offset of priorityOffsets) {
     const testX = x + offset.dx;
     const testY = y + offset.dy;
-    
+
     const testBounds = {
       left: testX,
       top: testY,
@@ -825,7 +845,7 @@ function findNonOverlappingPosition(x, y, width, height) {
       const angle = (Math.PI * 2 * a) / angleSteps;
       const testX = x + Math.cos(angle) * radius;
       const testY = y + Math.sin(angle) * radius;
-      
+
       const testBounds = {
         left: testX,
         top: testY,
@@ -845,10 +865,10 @@ function findNonOverlappingPosition(x, y, width, height) {
   for (let gx = -gridRange; gx <= gridRange; gx++) {
     for (let gy = -gridRange; gy <= gridRange; gy++) {
       if (gx === 0 && gy === 0) continue;
-      
+
       const testX = x + gx * gridStep;
       const testY = y + gy * gridStep;
-      
+
       const testBounds = {
         left: testX,
         top: testY,
@@ -863,7 +883,7 @@ function findNonOverlappingPosition(x, y, width, height) {
   }
 
   if (!CONFIG.LABEL_QUEUE_ENABLED) {
-    return findLeastCrowdedPosition(x, y, width, height, viewportWidth, viewportHeight);
+    return { x: x, y: y - 30 }; // Simplified fallback
   }
 
   return null;
@@ -879,65 +899,7 @@ function isValidPosition(bounds, viewportWidth, viewportHeight) {
   );
 }
 
-function findLeastCrowdedPosition(x, y, width, height, viewportWidth, viewportHeight) {
-  let bestPosition = { x, y: y - 30 };
-  let minOverlapScore = Infinity;
-  
-  const testPositions = [
-    { dx: 0, dy: -50 },
-    { dx: 0, dy: 50 },
-    { dx: -60, dy: 0 },
-    { dx: 60, dy: 0 },
-    { dx: -50, dy: -50 },
-    { dx: 50, dy: -50 },
-    { dx: -50, dy: 50 },
-    { dx: 50, dy: 50 },
-  ];
-  
-  for (const offset of testPositions) {
-    const testX = x + offset.dx;
-    const testY = y + offset.dy;
-    
-    const testBounds = {
-      left: testX,
-      top: testY,
-      right: testX + width,
-      bottom: testY + height
-    };
-    
-    if (!isValidPosition(testBounds, viewportWidth, viewportHeight)) continue;
-    
-    const overlapScore = calculateOverlapScore(testBounds);
-    
-    if (overlapScore < minOverlapScore) {
-      minOverlapScore = overlapScore;
-      bestPosition = { x: testX, y: testY };
-    }
-  }
-  
-  return bestPosition;
-}
 
-function calculateOverlapScore(bounds) {
-  let score = 0;
-  const padding = CONFIG.LABEL_PADDING;
-
-  for (const existingBounds of state.activeLabelBounds) {
-    const overlapX = Math.max(0,
-      Math.min(bounds.right + padding, existingBounds.right + padding) -
-      Math.max(bounds.left - padding, existingBounds.left - padding)
-    );
-
-    const overlapY = Math.max(0,
-      Math.min(bounds.bottom + padding, existingBounds.bottom + padding) -
-      Math.max(bounds.top - padding, existingBounds.top - padding)
-    );
-
-    score += overlapX * overlapY;
-  }
-
-  return score;
-}
 
 function hasCollision(bounds) {
   const padding = CONFIG.LABEL_PADDING;
@@ -966,7 +928,7 @@ function createLabelConnector(x1, y1, x2, y2) {
   svg.style.pointerEvents = 'none';
   svg.style.zIndex = '4';
   svg.classList.add('label-connector');
-  
+
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
   line.setAttribute('x1', x1);
   line.setAttribute('y1', y1);
@@ -975,10 +937,10 @@ function createLabelConnector(x1, y1, x2, y2) {
   line.setAttribute('stroke', state.isDarkMode ? 'rgba(246, 173, 85, 0.3)' : 'rgba(99, 102, 241, 0.3)');
   line.setAttribute('stroke-width', '1');
   line.setAttribute('stroke-dasharray', '3,3');
-  
+
   svg.appendChild(line);
   document.body.appendChild(svg);
-  
+
   return svg;
 }
 
@@ -997,7 +959,16 @@ function addLogEntry(entry) {
     if (!container) return;
 
     const logDiv = document.createElement('div');
-    logDiv.className = entry.filtered ? 'log-entry blocked' : 'log-entry';
+    const isBlocked = entry.filtered === true;
+    const isNoAnswer = entry.ip === 'No Answer';
+
+    if (isBlocked) {
+      logDiv.className = 'log-entry blocked';
+    } else if (isNoAnswer) {
+      logDiv.className = 'log-entry no-answer';
+    } else {
+      logDiv.className = 'log-entry';
+    }
 
     const time = entry.timestamp ? entry.timestamp.toLocaleTimeString() : new Date().toLocaleTimeString();
     const domain = sanitizeHTML(entry.domain || 'Unknown');
@@ -1006,15 +977,17 @@ function addLogEntry(entry) {
     const type = sanitizeHTML(entry.type || 'A');
     const elapsed = entry.elapsed ? `${entry.elapsed}ms` : '';
     const cached = entry.cached ? ' • Cached' : '';
-    const blocked = entry.filtered ? ' • <span class="log-blocked">BLOCKED</span>' : '';
+    const blocked = isBlocked ? ' • <span class="log-blocked">BLOCKED</span>' : '';
+    const noAnswer = isNoAnswer ? ' • <span class="log-no-answer">NO ANSWER</span>' : '';
+    const cnameInfo = entry.cname ? ` • <span class="log-cname" title="Resolved from CNAME: ${sanitizeHTML(entry.cname)}">CNAME</span>` : '';
     const details = entry.details ? sanitizeHTML(entry.details) : '';
 
     logDiv.innerHTML = `
       <div class="log-time">${time}${clientIp ? ` • <span class="log-client">${clientIp}</span>` : ''}</div>
-      <div class="log-domain">${domain}</div>
+      <div class="log-domain">${domain}${cnameInfo}</div>
       <div class="log-details">
         ${ip ? `<span class="log-ip">${ip}</span> • ` : ''}
-        ${type}${elapsed ? ` • ${elapsed}` : ''}${cached}${blocked}
+        ${type}${elapsed ? ` • ${elapsed}` : ''}${cached}${blocked}${noAnswer}
         ${details ? ` • ${details}` : ''}
       </div>
     `;
@@ -1045,15 +1018,15 @@ function updateStatus(status, text) {
     if (indicator) {
       indicator.className = `status-indicator ${status === 'disconnected' ? 'disconnected' : ''}`;
     }
-    
+
     if (indicatorTop) {
       indicatorTop.className = `status-indicator ${status === 'disconnected' ? 'disconnected' : ''}`;
     }
-    
+
     if (statusText) {
       statusText.textContent = sanitizeString(text);
     }
-    
+
     if (statusTextTop) {
       statusTextTop.textContent = sanitizeString(text);
     }
@@ -1077,7 +1050,7 @@ function updateStats() {
     if (state.responseTimes.length > 0) {
       const sum = state.responseTimes.reduce((a, b) => a + b, 0);
       const avg = sum / state.responseTimes.length;
-      
+
       if (!isNaN(avg) && isFinite(avg)) {
         animateStat(statAvg, `${avg.toFixed(1)}ms`);
       } else {
@@ -1086,7 +1059,7 @@ function updateStats() {
     } else {
       animateStat(statAvg, '0ms');
     }
-    
+
     if (state.upstreamTimes.length > 0) {
       const sum = state.upstreamTimes.reduce((a, b) => a + b, 0);
       const avg = sum / state.upstreamTimes.length;
@@ -1106,7 +1079,7 @@ function updateStats() {
 
 function animateStat(element, newValue) {
   if (!element) return;
-  
+
   try {
     if (element.textContent !== newValue) {
       element.textContent = newValue;
@@ -1220,18 +1193,18 @@ function drawResponseChart(interpolation = 1) {
         y: height - (value / maxValue) * height
       }));
 
-      state.responseChart.beginPath();
-
-      if (points.length > 0) {
+      const drawPath = () => {
+        if (points.length === 0) return;
         state.responseChart.moveTo(points[0].x, points[0].y);
-
         if (points.length > 2) {
           drawCatmullRomSpline(state.responseChart, points, CONFIG.CHART_TENSION);
         } else if (points.length === 2) {
           state.responseChart.lineTo(points[1].x, points[1].y);
         }
-      }
+      };
 
+      state.responseChart.beginPath();
+      drawPath();
       state.responseChart.lineTo(width, height);
       state.responseChart.lineTo(0, height);
       state.responseChart.closePath();
@@ -1239,17 +1212,7 @@ function drawResponseChart(interpolation = 1) {
       state.responseChart.fill();
 
       state.responseChart.beginPath();
-
-      if (points.length > 0) {
-        state.responseChart.moveTo(points[0].x, points[0].y);
-
-        if (points.length > 2) {
-          drawCatmullRomSpline(state.responseChart, points, CONFIG.CHART_TENSION);
-        } else if (points.length === 2) {
-          state.responseChart.lineTo(points[1].x, points[1].y);
-        }
-      }
-
+      drawPath();
       state.responseChart.stroke();
     }
 
@@ -1322,19 +1285,19 @@ function toggleTheme() {
 
 function toggleSidebarPosition() {
   state.isSidebarRight = !state.isSidebarRight;
-  
+
   if (state.isSidebarRight) {
     document.body.classList.add('sidebar-right');
   } else {
     document.body.classList.remove('sidebar-right');
   }
-  
+
   if (state.navigationControl && state.map) {
     state.map.removeControl(state.navigationControl);
     const newPosition = state.isSidebarRight ? 'bottom-left' : 'bottom-right';
     state.map.addControl(state.navigationControl, newPosition);
   }
-  
+
   savePreference('sidebarPosition', state.isSidebarRight ? 'right' : 'left');
 }
 
@@ -1384,7 +1347,7 @@ function applyDarkMode() {
           state.map.setPaintProperty(layer.id, 'text-halo-blur', 1);
           state.map.setPaintProperty(layer.id, 'text-opacity', 0.4);
         }
-      } catch (error) {}
+      } catch (error) { }
     });
   } catch (error) {
     console.error('Error applying dark mode:', error);
@@ -1439,15 +1402,15 @@ function cleanup() {
   if (state.ws) {
     state.ws.close(1000, 'Page unload');
   }
-  
+
   if (state.reconnectTimeoutId) {
     clearTimeout(state.reconnectTimeoutId);
   }
-  
+
   if (state.statsUpdateIntervalId) {
     clearInterval(state.statsUpdateIntervalId);
   }
-  
+
   if (state.chartAnimationFrameId) {
     cancelAnimationFrame(state.chartAnimationFrameId);
   }
@@ -1469,7 +1432,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
 function queueLabel(destination, data) {
   const priority = (CONFIG.LABEL_PRIORITY_BLOCKED && data.filtered) ? 1 : 0;
-  
+
   state.labelQueue.push({
     destination,
     data,
