@@ -6,14 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DNS Visualization Dashboard</title>
 
-    <!-- MapLibre GL JS -->
     <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" rel="stylesheet" />
 
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Custom Styles -->
     <link href="styles.css" rel="stylesheet" />
 </head>
 
@@ -25,7 +22,6 @@
         <div>Connecting to DNS stream...</div>
     </div>
 
-    <!-- Top Navbar (shown when sidebar is hidden) -->
     <div class="top-navbar" id="top-navbar">
         <h1>DNS Visualization Dashboard</h1>
         <div class="status">
@@ -34,9 +30,7 @@
         </div>
     </div>
 
-    <!-- Sidebar -->
     <div class="sidebar">
-        <!-- Header Section -->
         <div class="sidebar-section sidebar-header">
             <h1>DNS Visualization Dashboard</h1>
             <div class="status">
@@ -45,7 +39,6 @@
             </div>
         </div>
 
-        <!-- Stats Section -->
         <div class="sidebar-section">
             <div class="stats-title">Active Queries</div>
             <div class="stat-item">
@@ -73,7 +66,6 @@
                 <span class="stat-value" id="stat-adguard-avg">0ms</span>
             </div>
 
-            <!-- Dashboard Filters -->
             <div class="filter-controls">
                 <div class="filter-item">
                     <label for="filter-local-toggle">Filter .local traffic</label>
@@ -84,19 +76,16 @@
                 </div>
             </div>
 
-            <!-- Response Time Graph -->
             <div class="response-graph">
                 <canvas id="response-chart" width="332" height="80"></canvas>
             </div>
         </div>
 
-        <!-- Log Stream Section -->
         <div class="sidebar-section">
             <div class="log-stream-title">DNS Query Log</div>
             <div class="log-stream-content" id="log-container"></div>
         </div>
 
-        <!-- Footer Section -->
         <div class="sidebar-footer">
             <a href="https://github.com/neur0tic/dns-visualizer" target="_blank" rel="noopener noreferrer"
                 class="footer-link">
@@ -109,22 +98,18 @@
         </div>
     </div>
 
-    <!-- Theme Toggle -->
     <div class="theme-toggle" id="theme-toggle">
         <button id="theme-icon">☀️</button>
     </div>
 
-    <!-- Sidebar Position Toggle -->
     <div class="sidebar-toggle" id="sidebar-toggle" title="Move sidebar to other side">
         <button id="sidebar-icon">⇄</button>
     </div>
 
-    <!-- Sidebar Hide Toggle -->
     <div class="sidebar-hide-toggle" id="sidebar-hide-toggle" title="Hide/Show sidebar">
         <button id="sidebar-hide-icon">◀</button>
     </div>
 
-    <!-- DNS Type Legend -->
     <div class="dns-legend">
         <div class="legend-title">DNS Query Types</div>
         <div class="legend-items">

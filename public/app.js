@@ -1,9 +1,3 @@
-// DNS Visualization Dashboard - Client Application
-
-// ============================================================================
-// CONFIGURATION & CONSTANTS
-// ============================================================================
-
 const CONFIG = {
   MAX_CONCURRENT_ARCS: 100,
   MAX_LOG_ENTRIES: 15,
@@ -41,10 +35,6 @@ const DNS_TYPE_COLORS = Object.freeze({
   'CAA': '#667eea'
 });
 
-// ============================================================================
-// STATE MANAGEMENT
-// ============================================================================
-
 const state = {
   map: null,
   ws: null,
@@ -71,10 +61,6 @@ const state = {
   statsUpdateIntervalId: null,
   filterLocal: false
 };
-
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
   try {
@@ -137,10 +123,6 @@ function loadPreferences() {
     console.warn('Failed to load preferences from localStorage:', error);
   }
 }
-
-// ============================================================================
-// MAP INITIALIZATION
-// ============================================================================
 
 function initMap() {
   state.map = new maplibregl.Map({
@@ -234,10 +216,6 @@ function addNavigationControls() {
   state.map.addControl(state.navigationControl, position);
 }
 
-// ============================================================================
-// WEBSOCKET CONNECTION
-// ============================================================================
-
 function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}`;
@@ -265,7 +243,6 @@ function onWebSocketMessage(event) {
   try {
     const data = JSON.parse(event.data);
 
-    // Validate message structure
     if (!data || typeof data !== 'object' || !data.type) {
       console.warn('Invalid message format:', data);
       return;
@@ -286,7 +263,7 @@ function onWebSocketClose(event) {
   console.log('WebSocket disconnected:', event.code, event.reason);
   updateStatus('disconnected', 'Disconnected');
 
-  if (event.code !== 1000) { // Not a normal closure
+  if (event.code !== 1000) {
     scheduleReconnect();
   }
 }
@@ -302,7 +279,6 @@ function scheduleReconnect() {
 
   state.reconnectAttempts++;
 
-  // Exponential backoff
   const delay = Math.min(
     CONFIG.RECONNECT_BASE_DELAY * Math.pow(2, state.reconnectAttempts - 1),
     CONFIG.RECONNECT_MAX_DELAY
@@ -336,10 +312,6 @@ function handleMessage(data) {
   }
 }
 
-// ============================================================================
-// MESSAGE HANDLERS
-// ============================================================================
-
 function handleStats(event) {
   const statAdguardAvg = document.getElementById('stat-adguard-avg');
 
@@ -355,7 +327,6 @@ function handleDNSQuery(event) {
     return;
   }
 
-  // Filter .local traffic if enabled
   if (state.filterLocal && event.data.domain && event.data.domain.toLowerCase().endsWith('.local')) {
     return;
   }
@@ -392,10 +363,6 @@ function handleDNSQuery(event) {
     if (state.upstreamTimes.length > 100) state.upstreamTimes.shift();
   }
 }
-
-// ============================================================================
-// ARC VISUALIZATION
-// ============================================================================
 
 function createArc(source, destination, data) {
   const arcId = `arc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -575,10 +542,6 @@ function removeArc(arcId) {
   state.activeArcs = state.activeArcs.filter(id => id !== arcId);
 }
 
-// ============================================================================
-// VISUAL EFFECTS
-// ============================================================================
-
 function createDestinationGlow(destination, color) {
   const glowId = `glow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -703,10 +666,6 @@ function triggerSourcePulse() {
     state.sourcePulseActive = false;
   }, CONFIG.SOURCE_PULSE_THROTTLE);
 }
-
-// ============================================================================
-// UI UPDATES
-// ============================================================================
 
 function addArcLabel(destination, data) {
   if (CONFIG.LABEL_QUEUE_ENABLED && state.activeLabels >= CONFIG.MAX_CONCURRENT_LABELS) {
@@ -899,8 +858,6 @@ function isValidPosition(bounds, viewportWidth, viewportHeight) {
   );
 }
 
-
-
 function hasCollision(bounds) {
   const padding = CONFIG.LABEL_PADDING;
 
@@ -1091,10 +1048,6 @@ function animateStat(element, newValue) {
   }
 }
 
-// ============================================================================
-// CHART RENDERING
-// ============================================================================
-
 function initResponseChart() {
   const canvas = document.getElementById('response-chart');
   if (!canvas) return;
@@ -1246,10 +1199,6 @@ function drawCatmullRomSpline(ctx, points, tension = 0.5) {
   }
 }
 
-// ============================================================================
-// THEME & SIDEBAR CONTROLS
-// ============================================================================
-
 function toggleTheme() {
   state.isDarkMode = !state.isDarkMode;
   const themeIcon = document.getElementById('theme-icon');
@@ -1354,10 +1303,6 @@ function applyDarkMode() {
   }
 }
 
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
 function getColorForDNSType(type) {
   return DNS_TYPE_COLORS[type] || DNS_TYPE_COLORS.A;
 }
@@ -1415,10 +1360,6 @@ function cleanup() {
     cancelAnimationFrame(state.chartAnimationFrameId);
   }
 }
-
-// ============================================================================
-// ERROR BOUNDARY
-// ============================================================================
 
 window.addEventListener('error', (event) => {
   console.error('Global error:', event.error);
