@@ -1118,7 +1118,7 @@ function toggleTheme() {
     }
   }
 
-  drawResponseChart();
+  savePreference('theme', state.isDarkMode ? 'dark' : 'light');
 }
 
 function toggleSidebarPosition() {
