@@ -364,8 +364,8 @@ function handleDNSQuery(event) {
     clientIp: sanitizeString(event.data.clientIp),
     type: sanitizeString(event.data.queryType),
     elapsed: parseFloat(event.data.elapsed) || 0,
-    cached: Boolean(event.data.cached),
-    filtered: Boolean(event.data.filtered),
+    cached: event.data.cached || false,
+    filtered: event.data.filtered || false,
     timestamp: new Date(event.timestamp)
   });
 
