@@ -202,16 +202,21 @@ function animatePulse() {
   let pulsePhase = 0;
 
   function animate() {
-    if (!state.map || !state.map.getLayer('pulse-layer')) return;
+    try {
+      if (!state.map || !state.map.getLayer('pulse-layer')) return;
 
-    pulsePhase += 0.02;
-    const scale = 1 + Math.sin(pulsePhase) * 0.5;
-    const opacity = 0.8 - Math.abs(Math.sin(pulsePhase)) * 0.6;
+      pulsePhase += 0.02;
+      const scale = 1 + Math.sin(pulsePhase) * 0.5;
+      const opacity = 0.8 - Math.abs(Math.sin(pulsePhase)) * 0.6;
 
-    state.map.setPaintProperty('pulse-layer', 'circle-radius', 20 * scale);
-    state.map.setPaintProperty('pulse-layer', 'circle-opacity', opacity);
+      state.map.setPaintProperty('pulse-layer', 'circle-radius', 20 * scale);
+      state.map.setPaintProperty('pulse-layer', 'circle-opacity', opacity);
 
-    requestAnimationFrame(animate);
+      requestAnimationFrame(animate);
+    } catch (error) {
+      console.error('Pulse animation error:', error);
+      // Animation stops on error - prevents infinite error loops
+    }
   }
 
   animate();
@@ -462,24 +467,24 @@ function animateArc(arcId, lineString, destination, data, arcColor) {
   let trailCreated = false;
 
   const interval = setInterval(() => {
-    currentStep++;
+    try {
+      currentStep++;
 
-    if (currentStep >= steps) {
-      clearInterval(interval);
+      if (currentStep >= steps) {
+        clearInterval(interval);
 
-      addArcLabel(destination, data);
-      createDestinationGlow(destination, arcColor);
+        addArcLabel(destination, data);
+        createDestinationGlow(destination, arcColor);
 
-      if (!trailCreated) {
-        createArcTrail(lineString, arcColor);
-        trailCreated = true;
+        if (!trailCreated) {
+          createArcTrail(lineString, arcColor);
+          trailCreated = true;
+        }
+
+        setTimeout(() => removeArc(arcId), 3000);
+        return;
       }
 
-      setTimeout(() => removeArc(arcId), 3000);
-      return;
-    }
-
-    try {
       const currentCoordinates = lineString.coordinates.slice(0, currentStep);
 
       if (state.map.getSource(arcId)) {
@@ -492,7 +497,7 @@ function animateArc(arcId, lineString, destination, data, arcColor) {
         });
       }
     } catch (error) {
-      console.error('Error animating arc:', error);
+      console.error('Arc animation error:', error);
       clearInterval(interval);
       removeArc(arcId);
     }
@@ -541,20 +546,21 @@ function animateTrailFade(trailId, initialOpacity) {
   let currentFade = 0;
 
   const fade = setInterval(() => {
-    currentFade++;
-    const opacity = initialOpacity * (1 - currentFade / fadeSteps);
-
     try {
+      currentFade++;
+      const opacity = initialOpacity * (1 - currentFade / fadeSteps);
+
       if (state.map.getLayer(trailId)) {
         state.map.setPaintProperty(trailId, 'line-opacity', opacity);
       } else {
         clearInterval(fade);
       }
-    } catch (error) {
-      clearInterval(fade);
-    }
 
-    if (currentFade >= fadeSteps) {
+      if (currentFade >= fadeSteps) {
+        clearInterval(fade);
+      }
+    } catch (error) {
+      console.error('Trail fade animation error:', error);
       clearInterval(fade);
     }
   }, fadeInterval);
@@ -632,13 +638,13 @@ function animateGlow(glowId, layer1, layer2) {
   let currentStep = 0;
 
   const glowInterval = setInterval(() => {
-    currentStep++;
-    const progress = currentStep / steps;
-    const scale = 1 + (progress * 2);
-    const opacity1 = 0.6 * (1 - progress);
-    const opacity2 = 0.8 * (1 - progress);
-
     try {
+      currentStep++;
+      const progress = currentStep / steps;
+      const scale = 1 + (progress * 2);
+      const opacity1 = 0.6 * (1 - progress);
+      const opacity2 = 0.8 * (1 - progress);
+
       if (state.map.getLayer(layer1)) {
         state.map.setPaintProperty(layer1, 'circle-radius', 30 * scale);
         state.map.setPaintProperty(layer1, 'circle-opacity', opacity1);
@@ -648,21 +654,22 @@ function animateGlow(glowId, layer1, layer2) {
         state.map.setPaintProperty(layer2, 'circle-radius', 15 * scale);
         state.map.setPaintProperty(layer2, 'circle-opacity', opacity2);
       }
-    } catch (error) {
-      clearInterval(glowInterval);
-    }
 
-    if (currentStep >= steps) {
+      if (currentStep >= steps) {
+        clearInterval(glowInterval);
+        setTimeout(() => {
+          try {
+            if (state.map.getLayer(layer1)) state.map.removeLayer(layer1);
+            if (state.map.getLayer(layer2)) state.map.removeLayer(layer2);
+            if (state.map.getSource(glowId)) state.map.removeSource(glowId);
+          } catch (error) {
+            console.warn('Error cleaning up glow:', error);
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Glow animation error:', error);
       clearInterval(glowInterval);
-      setTimeout(() => {
-        try {
-          if (state.map.getLayer(layer1)) state.map.removeLayer(layer1);
-          if (state.map.getLayer(layer2)) state.map.removeLayer(layer2);
-          if (state.map.getSource(glowId)) state.map.removeSource(glowId);
-        } catch (error) {
-          console.warn('Error cleaning up glow:', error);
-        }
-      }, 100);
     }
   }, stepDuration);
 }
