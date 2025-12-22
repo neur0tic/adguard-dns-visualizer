@@ -2,6 +2,7 @@ const CONFIG = {
   MAX_CONCURRENT_ARCS: 100,
   MAX_LOG_ENTRIES: 15,
   MAX_CONCURRENT_LABELS: 12,
+  MAX_LABEL_QUEUE_SIZE: 50,
   ARC_ANIMATION_DURATION: 1500,
   LABEL_LIFETIME: 5000,
   LABEL_LIFETIME_MIN: 3000,
@@ -1253,6 +1254,17 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 function queueLabel(destination, data) {
+  // Prevent queue from growing unbounded
+  if (state.labelQueue.length >= CONFIG.MAX_LABEL_QUEUE_SIZE) {
+    // Try to remove low-priority items first, otherwise remove oldest
+    const lowPriorityIndex = state.labelQueue.findIndex(item => item.priority === 0);
+    if (lowPriorityIndex !== -1) {
+      state.labelQueue.splice(lowPriorityIndex, 1);
+    } else {
+      state.labelQueue.shift();
+    }
+  }
+
   const priority = (CONFIG.LABEL_PRIORITY_BLOCKED && data.filtered) ? 1 : 0;
 
   state.labelQueue.push({
@@ -1261,15 +1273,6 @@ function queueLabel(destination, data) {
     priority,
     timestamp: Date.now()
   });
-
-  if (state.labelQueue.length > 50) {
-    const lowPriorityIndex = state.labelQueue.findIndex(item => item.priority === 0);
-    if (lowPriorityIndex !== -1) {
-      state.labelQueue.splice(lowPriorityIndex, 1);
-    } else {
-      state.labelQueue.shift();
-    }
-  }
 }
 
 function processLabelQueue() {
