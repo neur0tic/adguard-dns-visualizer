@@ -1,170 +1,237 @@
 # DNS Visualization Dashboard
 
-A real-time DNS traffic visualization dashboard that connects to AdGuard Home and displays DNS queries as animated arcs on an interactive world map.
+**TL;DR:** A real-time visualization tool that shows your DNS queries as animated arcs on a world map.
 
-## Description
+This app connects to AdGuard Home and displays every DNS lookup your network makes, drawing animated lines from your location to where those servers are located worldwide.
 
-This application provides a beautiful, real-time visualization of DNS traffic from your AdGuard Home instance. Watch as DNS queries travel across the globe with animated arcs on an interactive map, complete with detailed logging and statistics.
+---
 
-**Key Features:**
-- Real-time DNS query visualization with animated arcs
-- Interactive world map with dark/light theme support
-- Live statistics dashboard (response times, blocked queries, cache hits)
-- WebSocket-based streaming for instant updates
-- Smart label placement with collision detection
-- Responsive design with mobile support
-- Security-focused with rate limiting and input sanitization
+## What Does This Do?
 
-## Tech Stack
+Every time you visit a website, your computer performs a DNS lookup to find the server's IP address. This application:
 
-### Backend
-- **Node.js** (v18+) - Server runtime
-- **Express** - Web framework
-- **WebSocket (ws)** - Real-time communication
-- **Helmet** - Security headers
-- **express-rate-limit** - API rate limiting
-- **dotenv** - Environment configuration
+1. **Captures** those DNS queries from AdGuard Home
+2. **Locates** where each server is in the world
+3. **Visualizes** the connection as an animated arc on a map
+4. **Displays** statistics like response time, blocked queries, and cache hits
 
-### Frontend
-- **MapLibre GL JS** - Interactive mapping library
-- **Vanilla JavaScript** - No framework dependencies
-- **WebSocket API** - Real-time data streaming
-- **Canvas API** - Chart rendering
+Think of it as a live map of your internet activity.
 
-### External Services
-- **AdGuard Home** - DNS filtering and query logging
-- **ip-api.com** - IP geolocation (free tier: 45 req/min)
+---
 
-## Requirements
+## Quick Start
 
-### System Requirements
-- **Node.js**: v18.0.0 or higher
-- **RAM**: Minimum 512MB, recommended 1GB+
-- **Network**: Access to AdGuard Home API
+### Prerequisites
 
-### AdGuard Home Setup
-1. AdGuard Home must be installed and running
-2. API access must be enabled
-3. Query logging must be enabled in AdGuard settings
-4. You need admin credentials for API authentication
+- **Node.js** version 18 or higher ([Download here](https://nodejs.org/))
+- **AdGuard Home** installed and running ([Get it here](https://adguard.com/adguard-home/))
+- Basic command line knowledge
 
-### Browser Compatibility
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 14+
-- Mobile browsers with WebGL support
+### Installation (5 minutes)
 
-## Installation
-
-### Standard Installation
-
-1. Clone the repository:
+**Step 1: Download the project**
 ```bash
 git clone https://github.com/neur0tic/dns-visualizer.git
 cd dns-visualizer
 ```
 
-2. Install dependencies:
+**Step 2: Install dependencies**
 ```bash
 npm install
 ```
+This downloads all required libraries.
 
-3. Configure environment variables:
+**Step 3: Create configuration file**
 ```bash
 cp .env.example .env
 ```
+This creates your settings file from the template.
 
-4. Edit `.env` with your settings (see Configuration section below)
+**Step 4: Configure your settings**
 
-5. Start the server:
-```bash
-npm start
-```
-
-6. Access the dashboard:
-```
-http://localhost:8080
-```
-
-### Development Mode
-
-For development with auto-reload:
-```bash
-npm run dev
-```
-
-## Configuration
-
-### Environment Variables (.env)
-
-Create a `.env` file in the project root with the following configuration:
+Open the `.env` file in any text editor and update:
 
 ```env
-# AdGuard Home Configuration (Required)
+# AdGuard Home connection
 ADGUARD_URL=http://localhost:3000
 ADGUARD_USERNAME=admin
 ADGUARD_PASSWORD=your_password_here
 
-# Server Configuration
-PORT=8080
-NODE_ENV=production
-
-# Source Location (Default: Kuala Lumpur)
-# Change these to your actual location
+# Your location (default: Kuala Lumpur)
 SOURCE_LAT=3.139
 SOURCE_LNG=101.6869
 
-# GeoIP API Configuration (Optional)
-# Default: http://ip-api.com/json (45 req/min free tier)
-# GEOIP_API_URL=http://ip-api.com/json
-# GEOIP_API_TIMEOUT=5000
-# GEOIP_MAX_RETRIES=2
-# GEOIP_RETRY_DELAY=1000
-# GEOIP_MAX_CACHE_SIZE=10000
-# GEOIP_MAX_REQUESTS_PER_MINUTE=15
-# GEOIP_MIN_REQUEST_DELAY=4000
-
-# Performance Settings
-MAX_CONCURRENT_ARCS=100
-LOG_RETENTION_COUNT=10
-POLL_INTERVAL_MS=3000
-STATS_INTERVAL_MS=5000
+# Server port
+PORT=8080
 ```
 
-### Configuration Details
+**Step 5: Start the server**
+```bash
+npm start
+```
 
-| Variable | Description | Default | Notes |
-|----------|-------------|---------|-------|
-| `ADGUARD_URL` | AdGuard Home base URL | `http://localhost:3000` | Include protocol and port |
-| `ADGUARD_USERNAME` | AdGuard admin username | `admin` | Required for API access |
-| `ADGUARD_PASSWORD` | AdGuard admin password | - | **Required** |
-| `PORT` | Server listening port | `8080` | Change if port is in use |
-| `NODE_ENV` | Environment mode | `production` | Use `development` for debugging |
-| `SOURCE_LAT` | Source latitude | `3.139` | Your location's latitude |
-| `SOURCE_LNG` | Source longitude | `101.6869` | Your location's longitude |
-| `GEOIP_MAX_CACHE_SIZE` | Max cached IP locations | `10000` | Increase for better performance |
-| `GEOIP_MAX_REQUESTS_PER_MINUTE` | API rate limit | `15` | Stay under free tier limit |
-| `GEOIP_MIN_REQUEST_DELAY` | Min delay between API calls (ms) | `4000` | Prevents API bursts |
-| `MAX_CONCURRENT_ARCS` | Max simultaneous arcs | `100` | Reduce for lower-end hardware |
-| `POLL_INTERVAL_MS` | DNS polling interval | `3000` | Lower = more real-time, higher CPU |
-| `STATS_INTERVAL_MS` | Statistics update interval | `5000` | How often stats refresh |
+**Step 6: Open in browser**
+
+Navigate to: `http://localhost:8080`
+
+You should see a world map. Start browsing websites and watch the arcs appear as DNS queries are made.
+
+---
+
+## What You'll See
+
+### The Map Interface
+
+- **Pulsing circle** - Your source location
+- **Animated arcs** - DNS queries traveling to their destinations
+- **Labels** - Information about each query (domain, IP, response time)
+- **Color coding** - Different DNS record types have different colors
+
+### Sidebar Statistics
+
+The sidebar shows real-time metrics:
+
+- **Active Queries** - Current number of arcs on the map
+- **Total Queries** - Cumulative count of DNS lookups
+- **Blocked Queries** - Ads and trackers blocked by AdGuard
+- **Avg Response** - Average DNS response time
+- **Upstream Response** - Time taken by upstream DNS servers
+- **AdGuard Processing** - Time spent in AdGuard filtering
+
+### DNS Record Colors
+
+- **Orange** - A record (IPv4 address)
+- **Blue** - AAAA record (IPv6 address)
+- **Green** - CNAME (canonical name/alias)
+- **Purple** - MX (mail exchange)
+- **Red** - Blocked queries
+
+---
+
+## Features
+
+### Theme Toggle
+Switch between dark and light modes using the theme toggle button.
+
+### Sidebar Position
+Move the sidebar between left and right sides of the screen.
+
+### Custom Source Location
+Set your actual location:
+- Choose from preset cities
+- Enter custom latitude/longitude coordinates
+- Changes persist across sessions
+
+### Traffic Filtering
+Toggle the `.local` filter to hide local network traffic (printers, NAS devices, etc.)
+
+### Layout Options
+Cycle through different dashboard layouts to suit your preference.
+
+---
+
+## Configuration Options
+
+All settings are in the `.env` file:
 
 ### Performance Tuning
 
-**High-traffic networks:**
-- Increase `GEOIP_MAX_CACHE_SIZE` to 50000+
-- Set `POLL_INTERVAL_MS` to 2000-3000
+```env
+# Polling intervals (in milliseconds)
+POLL_INTERVAL_MS=2000          # How often to check for new DNS queries
+STATS_INTERVAL_MS=5000         # How often to update statistics
+
+# Display limits
+MAX_CONCURRENT_ARCS=100        # Maximum arcs shown simultaneously
+LOG_RETENTION_COUNT=10         # Number of log entries to keep
+```
+
+**For high-traffic networks:**
+- Decrease `POLL_INTERVAL_MS` to 1000-1500 for more real-time updates
 - Increase `MAX_CONCURRENT_ARCS` to 150-200
 
-**Low-traffic or resource-constrained:**
-- Decrease `MAX_CONCURRENT_ARCS` to 50
+**For low-end hardware:**
 - Increase `POLL_INTERVAL_MS` to 5000+
-- Reduce `GEOIP_MAX_CACHE_SIZE` to 5000
+- Decrease `MAX_CONCURRENT_ARCS` to 50
 
-## Docker Compose Example
+### Location Settings
 
-Create a `docker-compose.yml` file:
+Find your coordinates at [latlong.net](https://www.latlong.net/)
 
+```env
+SOURCE_LAT=40.7128    # New York City example
+SOURCE_LNG=-74.0060
+```
+
+### GeoIP API Settings
+
+```env
+GEOIP_MAX_CACHE_SIZE=10000        # Number of IP locations to cache
+GEOIP_MAX_REQUESTS_PER_MINUTE=15  # API rate limit (free tier: 45/min)
+GEOIP_MIN_REQUEST_DELAY=4000      # Minimum delay between API calls (ms)
+```
+
+---
+
+## Troubleshooting
+
+### Cannot connect to AdGuard Home
+
+**Symptoms:** Error message about connection failure
+
+**Solutions:**
+1. Verify AdGuard Home is running: `curl http://localhost:3000`
+2. Check the `ADGUARD_URL` in your `.env` file
+3. Confirm your username and password are correct
+4. Ensure AdGuard Home API is enabled
+
+### No arcs appearing on map
+
+**Symptoms:** Map loads but no visualizations appear
+
+**Solutions:**
+1. Verify DNS queries are happening (browse some websites)
+2. Check AdGuard Home has query logging enabled (Settings > DNS Settings)
+3. Open browser console (F12) and check for errors
+4. Verify the GeoIP API is working (check server logs)
+
+### WebSocket disconnected
+
+**Symptoms:** "Disconnected" status in the UI
+
+**Solutions:**
+1. Refresh the browser page
+2. Check if the server is still running
+3. Verify port 8080 is not blocked by firewall
+4. Check server logs for error messages
+
+### High CPU usage
+
+**Symptoms:** Computer running slow, high CPU in task manager
+
+**Solutions:**
+1. Reduce `MAX_CONCURRENT_ARCS` to 50 in `.env`
+2. Increase `POLL_INTERVAL_MS` to 5000 in `.env`
+3. Close other browser tabs
+4. Restart the server after making changes
+
+### Rate limit errors
+
+**Symptoms:** "Rate limit reached" messages in logs
+
+**Solutions:**
+1. Increase `GEOIP_MIN_REQUEST_DELAY` to 5000
+2. Decrease `GEOIP_MAX_REQUESTS_PER_MINUTE` to 10
+3. Increase `GEOIP_MAX_CACHE_SIZE` to reduce API calls
+4. Consider using a paid GeoIP service for higher limits
+
+---
+
+## Docker Deployment
+
+If you prefer using Docker:
+
+**docker-compose.yml:**
 ```yaml
 version: '3.8'
 
@@ -180,21 +247,14 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - NODE_ENV=production
       - ADGUARD_URL=http://adguard:3000
       - ADGUARD_USERNAME=admin
       - ADGUARD_PASSWORD=${ADGUARD_PASSWORD}
-      - PORT=8080
       - SOURCE_LAT=3.139
       - SOURCE_LNG=101.6869
-      - POLL_INTERVAL_MS=3000
-      - STATS_INTERVAL_MS=5000
-      - MAX_CONCURRENT_ARCS=100
     command: sh -c "npm install && npm start"
     depends_on:
       - adguard
-    networks:
-      - dns-network
 
   adguard:
     image: adguard/adguardhome:latest
@@ -207,89 +267,36 @@ services:
     volumes:
       - ./adguard/work:/opt/adguardhome/work
       - ./adguard/conf:/opt/adguardhome/conf
-    networks:
-      - dns-network
-
-networks:
-  dns-network:
-    driver: bridge
 ```
 
-### Docker Compose Usage
-
-1. Create `.env` file with your AdGuard password:
+**Start with Docker:**
 ```bash
-echo "ADGUARD_PASSWORD=your_secure_password" > .env
-```
-
-2. Start services:
-```bash
+echo "ADGUARD_PASSWORD=your_password" > .env
 docker-compose up -d
 ```
 
-3. Access services:
-- DNS Visualizer: `http://localhost:8080`
-- AdGuard Home: `http://localhost:3000`
-
-4. View logs:
+**View logs:**
 ```bash
 docker-compose logs -f dns-visualizer
 ```
 
-5. Stop services:
+**Stop services:**
 ```bash
 docker-compose down
 ```
 
-## Usage
+---
 
-### First-Time Setup
+## How It Works
 
-1. Configure AdGuard Home:
-   - Access AdGuard at `http://localhost:3000`
-   - Complete initial setup wizard
-   - Enable query logging in Settings > DNS Settings
-   - Note your admin credentials
-
-2. Update `.env` file with AdGuard credentials
-
-3. Start the visualizer and access the dashboard
-
-### Dashboard Features
-
-**Map Controls:**
-- Drag to pan
-- Scroll to zoom
-- Click navigation controls for zoom/rotation
-
-**Sidebar Controls:**
-- Theme toggle (sun/moon icon)
-- Sidebar position toggle (left/right)
-- Sidebar hide/show toggle
-- Filter .local traffic toggle
-
-**Statistics Panel:**
-- Active Queries: Current arcs on map
-- Total Queries: Lifetime query count
-- Blocked Queries: Queries blocked by AdGuard
-- Avg Response: Average DNS response time
-- Upstream Response: Estimated upstream DNS time
-- AdGuard Processing: AdGuard processing time
-
-**Query Log:**
-- Last 15 DNS queries
-- Color-coded by type (A, AAAA, CNAME, etc.)
-- Shows blocked queries in red
-- Auto-fades after 5 seconds
-
-## Architecture
+### Architecture Overview
 
 ```
 ┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
 │  AdGuard Home   │      │   Node.js Server │      │   Web Browser   │
 │                 │      │                  │      │                 │
-│  - DNS Filter   │◄─────┤  - API Client    │      │  - MapLibre GL  │
-│  - Query Log    │      │  - WebSocket     │◄─────┤  - WebSocket    │
+│  - DNS Filter   │<─────┤  - API Client    │      │  - MapLibre GL  │
+│  - Query Log    │      │  - WebSocket     │<─────┤  - WebSocket    │
 │  - Statistics   │      │  - GeoIP Cache   │      │  - UI/Charts    │
 └─────────────────┘      └──────────────────┘      └─────────────────┘
                                   │
@@ -300,131 +307,129 @@ docker-compose down
                          └─────────────────┘
 ```
 
+### Data Flow
+
+1. **DNS Query** - User's device makes a DNS lookup
+2. **AdGuard Logs** - AdGuard Home logs the query
+3. **Server Polls** - Node.js server fetches new logs via API
+4. **GeoIP Lookup** - Server finds geographic location of IP address
+5. **WebSocket Push** - Server sends data to browser in real-time
+6. **Visualization** - Browser draws animated arc on map
+
+### Caching Strategy
+
+The application uses an LRU (Least Recently Used) cache to minimize API calls:
+- IP locations are cached after first lookup
+- Cache size configurable (default: 10,000 entries)
+- Reduces API usage and improves performance
+- Cache persists for the server session
+
+---
+
 ## Security
 
-### Implemented Security Features
+### Implemented Security Measures
 
-1. **Helmet.js Security Headers**
-   - Content Security Policy (CSP)
-   - X-Frame-Options
-   - X-Content-Type-Options
-   - Strict-Transport-Security
+**Helmet.js Security Headers:**
+- Content Security Policy (CSP)
+- X-Frame-Options
+- X-Content-Type-Options
+- Strict-Transport-Security
 
-2. **Rate Limiting**
-   - 100 requests per 15 minutes per IP (production)
-   - 1000 requests per 15 minutes (development)
+**Rate Limiting:**
+- 100 requests per 15 minutes per IP (production)
+- 1000 requests per 15 minutes (development)
 
-3. **Input Sanitization**
-   - All DNS data sanitized before display
-   - HTML entity encoding
-   - IP address validation
+**Input Sanitization:**
+- All DNS data sanitized before display
+- HTML entity encoding
+- IP address validation
 
-4. **Authentication**
-   - Basic auth to AdGuard Home API
-   - Credentials stored in environment variables
+**Authentication:**
+- Basic auth to AdGuard Home API
+- Credentials stored in environment variables (not in code)
 
-5. **Private IP Filtering**
-   - Local/private IPs excluded from visualization
-   - Prevents internal network exposure
+**Private IP Filtering:**
+- Local/private IPs excluded from visualization
+- Prevents internal network exposure
 
-### Production Deployment Recommendations
+### Best Practices for Production
 
-1. **Use HTTPS**: Deploy behind reverse proxy (Nginx, Caddy, Traefik)
-2. **Firewall**: Restrict access to trusted networks
-3. **Strong Passwords**: Use strong AdGuard credentials
-4. **Keep Updated**: Regularly update dependencies
-5. **Monitor**: Set up logging and monitoring
+1. **Use HTTPS** - Deploy behind a reverse proxy (Nginx, Caddy, Traefik)
+2. **Firewall** - Restrict access to trusted networks only
+3. **Strong Passwords** - Use strong AdGuard credentials
+4. **Keep Updated** - Regularly update dependencies
+5. **Monitor Logs** - Set up logging and monitoring
+6. **Backup .env** - Keep `.env` file secure and backed up
 
-### Example Nginx Reverse Proxy
+### Important Security Notes
 
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name dns-viz.example.com;
+- The `.env` file contains sensitive credentials
+- **Never commit `.env` to version control**
+- `.env` is already in `.gitignore` by default
+- Rotate passwords if `.env` is ever exposed
 
-    ssl_certificate /path/to/fullchain.pem;
-    ssl_certificate_key /path/to/privkey.pem;
+---
 
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Cannot connect to AdGuard Home:**
-- Verify `ADGUARD_URL` is correct and accessible
-- Check AdGuard Home is running: `curl http://localhost:3000`
-- Verify credentials are correct
-- Check firewall rules
-
-**No arcs appearing on map:**
-- Ensure DNS queries are happening (check AdGuard logs)
-- Verify query logging is enabled in AdGuard
-- Check browser console for errors
-- Confirm GeoIP API is working (check server logs)
-
-**High CPU usage:**
-- Reduce `MAX_CONCURRENT_ARCS`
-- Increase `POLL_INTERVAL_MS`
-- Check for browser memory leaks (close/reopen tab)
-
-**WebSocket disconnections:**
-- Check server logs for errors
-- Verify reverse proxy WebSocket support
-- Check network stability
-
-**Rate limit errors:**
-- Increase `GEOIP_MIN_REQUEST_DELAY`
-- Decrease `GEOIP_MAX_REQUESTS_PER_MINUTE`
-- Consider using a paid GeoIP service
-
-## Development
-
-### Project Structure
+## Project Structure
 
 ```
 dns-visualizer/
 ├── server/
-│   ├── index.js           # Main server & WebSocket
-│   ├── adguard-client.js  # AdGuard API client
+│   ├── index.js           # Main server & WebSocket handler
+│   ├── adguard-client.js  # AdGuard Home API client
 │   └── geo-service.js     # GeoIP service with caching
 ├── public/
 │   ├── index.html         # Dashboard UI
-│   ├── app.js            # Frontend logic
+│   ├── app.js            # Frontend logic & animations
 │   └── styles.css        # Styling
 ├── .env.example          # Environment template
+├── .env                  # Your settings (create this)
 ├── package.json          # Dependencies
 └── README.md            # This file
 ```
 
-### Development Commands
+---
+
+## Technology Stack
+
+### Backend
+- **Node.js** - JavaScript runtime
+- **Express** - Web framework
+- **WebSocket (ws)** - Real-time communication
+- **Helmet** - Security middleware
+- **express-rate-limit** - Rate limiting
+- **dotenv** - Environment configuration
+
+### Frontend
+- **MapLibre GL JS** - Open-source mapping library
+- **Vanilla JavaScript** - No framework dependencies
+- **WebSocket API** - Real-time updates
+- **CSS3** - Modern styling with animations
+
+### External Services
+- **AdGuard Home** - DNS filtering and logging
+- **ip-api.com** - Free IP geolocation API (45 requests/minute)
+
+---
+
+## Development
+
+### Development Mode
+
+Run with auto-reload:
+```bash
+npm run dev
+```
+
+### Available Commands
 
 ```bash
-# Install dependencies
-npm install
-
-# Development mode (auto-reload)
-npm run dev
-
-# Production mode
-npm start
-
-# Check for security vulnerabilities
-npm audit
-
-# Update dependencies
-npm update
+npm start          # Start production server
+npm run dev        # Start with auto-reload
+npm install        # Install dependencies
+npm update         # Update dependencies
+npm audit          # Check for security vulnerabilities
 ```
 
 ### API Endpoints
@@ -448,13 +453,77 @@ WS /
 Messages: JSON-formatted DNS query events
 ```
 
+---
+
+## Performance Optimization
+
+### Recommended Settings by Use Case
+
+**Home Network (Low Traffic):**
+```env
+POLL_INTERVAL_MS=3000
+MAX_CONCURRENT_ARCS=50
+GEOIP_MAX_CACHE_SIZE=5000
+```
+
+**Office Network (Medium Traffic):**
+```env
+POLL_INTERVAL_MS=2000
+MAX_CONCURRENT_ARCS=100
+GEOIP_MAX_CACHE_SIZE=10000
+```
+
+**Enterprise Network (High Traffic):**
+```env
+POLL_INTERVAL_MS=1000
+MAX_CONCURRENT_ARCS=200
+GEOIP_MAX_CACHE_SIZE=50000
+```
+
+### Monitoring Performance
+
+Check browser DevTools:
+- **Memory tab** - Monitor for memory leaks
+- **Performance tab** - Check frame rate
+- **Network tab** - Monitor WebSocket traffic
+- **Console** - Check for errors
+
+---
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+Contributions are welcome! Here's how:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes
+4. Test thoroughly
+5. Commit: `git commit -m "Add amazing feature"`
+6. Push: `git push origin feature/amazing-feature`
+7. Open a Pull Request
+
+### Code Style
+
+- Use ES6+ JavaScript features
+- Follow existing code formatting
+- Add comments for complex logic
+- Update documentation for new features
+
+---
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License - See LICENSE file for details
+
+---
+
+## Support
+
+- **Issues:** [GitHub Issues](https://github.com/neur0tic/dns-visualizer/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/neur0tic/dns-visualizer/discussions)
+- **Documentation:** See additional docs in the repository
+
+---
 
 ## Credits
 
@@ -464,11 +533,7 @@ MIT License - see LICENSE file for details
 - [Express](https://expressjs.com/) - Web framework
 - [Helmet](https://helmetjs.github.io/) - Security middleware
 
-## Support
-
-For issues, questions, or contributions:
-- GitHub Issues: https://github.com/neur0tic/dns-visualizer/issues
-- Documentation: See MIGRATION_GUIDE.md and GEOIP_ALTERNATIVES.md
+---
 
 ## Changelog
 
@@ -479,3 +544,9 @@ For issues, questions, or contributions:
 - GeoIP caching and rate limiting
 - Dark/light theme support
 - Mobile responsive design
+- Custom source location
+- Layout customization
+
+---
+
+**Made for privacy-conscious users who want to understand their network traffic**
