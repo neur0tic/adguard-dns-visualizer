@@ -87,6 +87,8 @@ app.use(helmet({
       childSrc: ["'self'", "blob:"]
     }
   },
+  // Disable HSTS to allow both HTTP and HTTPS without forced upgrades
+  strictTransportSecurity: false,
   // Disable Cross-Origin-Opener-Policy to prevent warnings on HTTP
   // This header only works properly on HTTPS or localhost
   crossOriginOpenerPolicy: false,
