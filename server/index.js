@@ -79,14 +79,17 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-      connectSrc: ["'self'", "ws:", "wss:", "https://unpkg.com", "https://demotiles.maplibre.org"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
+      scriptSrc: ["'self'", "https://unpkg.com", "'unsafe-eval'"],
+      connectSrc: ["'self'", "https://ip-api.com", "wss:", "ws:"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       workerSrc: ["'self'", "blob:"],
       childSrc: ["'self'", "blob:"]
     }
   },
+  // Disable Cross-Origin-Opener-Policy to prevent warnings on HTTP
+  // This header only works properly on HTTPS or localhost
+  crossOriginOpenerPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
