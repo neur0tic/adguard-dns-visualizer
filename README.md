@@ -2,6 +2,10 @@
 
 A real-time visualization of DNS queries on a world map. Watch your network's DNS traffic as animated arcs connecting your location to servers around the globe.
 
+# Demo
+
+![Alt text for the image](DNSvizAnimation.webp)
+
 ## What is this?
 
 When you visit a website, your computer asks "where is google.com?" - that's a DNS query. This tool connects to AdGuard Home, grabs those queries, figures out where the servers are located, and draws them on a map. It's pretty neat to see where your internet traffic actually goes.
@@ -78,7 +82,7 @@ Different DNS record types get different colors - A records are orange, AAAA are
 ## Troubleshooting
 
 **Can't connect to AdGuard:**
-Check that AdGuard is actually running and the URL in `.env` is right. Try opening `http://localhost:3000` in your browser.
+Check that AdGuard is actually running and the URL in `.env` is right. Try opening `http://<your_adguard_ip>:3000` in your browser.
 
 **No arcs showing up:**
 Make sure query logging is enabled in AdGuard (Settings → DNS Settings). Also try browsing some websites to generate queries.
@@ -105,35 +109,6 @@ MAX_CONCURRENT_ARCS=50
 GEOIP_MAX_CACHE_SIZE=5000
 ```
 
-## Project structure
-
-```
-server/
-  index.js           - Main server and WebSocket
-  adguard-client.js  - Talks to AdGuard API
-  geo-service.js     - Handles IP geolocation with caching
-
-public/
-  index.html         - The UI
-  app.js            - Map rendering and animations
-  styles.css        - How it looks
-```
-
-## Development
-
-```bash
-npm run dev  # Auto-reload on changes
-npm start    # Production mode
-```
-
-The browser console (F12) will show you what's happening. Server logs go to stdout.
-
-## API endpoints
-
-- `GET /health` - Server status
-- `GET /` - The dashboard
-- `WS /` - WebSocket for real-time updates
-
 ## Contributing
 
 Pull requests welcome. Please test your changes and keep the code style consistent.
@@ -144,4 +119,4 @@ MIT
 
 ## Credits
 
-Built with MapLibre GL, AdGuard Home, and ip-api.com. Thanks to those projects for making this possible.
+Built with MapLibre GL, AdGuard Home, and ip-api.com.
