@@ -12,6 +12,38 @@ When you visit a website, your computer asks "where is google.com?" - that's a D
 
 ## Quick Start
 
+### Option 1: Docker (Recommended)
+
+The easiest way to run the dashboard is using Docker:
+
+```bash
+# Create a .env file with your AdGuard credentials
+cat > .env << EOF
+ADGUARD_URL=http://your-adguard-ip:3000
+ADGUARD_USERNAME=admin
+ADGUARD_PASSWORD=your_password
+SOURCE_LAT=3.139
+SOURCE_LNG=101.6869
+EOF
+
+# Run the container
+docker run -d \
+  --name dns-visualizer \
+  -p 8080:8080 \
+  --env-file .env \
+  azwanngali/adguard-dns-visualizer:latest
+```
+
+Open `http://localhost:8080` and you should see a map. Browse some websites and watch the arcs appear.
+
+To stop the container:
+```bash
+docker stop dns-visualizer
+docker rm dns-visualizer
+```
+
+### Option 2: Node.js
+
 You'll need Node.js 18+ and AdGuard Home running.
 
 **Note:** Node.js 18 or higher is required. If you're on an older version, upgrade first:
