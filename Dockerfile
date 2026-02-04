@@ -3,32 +3,32 @@
 # ============================================
 # Stage 1: Dependencies
 # ============================================
-FROM node:22-alpine AS dependencies
+FROM node:25-alpine AS dependencies
 
 # Set working directory
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init for proper signal handling and update packages for security
+RUN apk upgrade --no-cache && apk add --no-cache dumb-init
 
 # Copy package files
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production --ignore-scripts && \
-    npm cache clean --force
+RUN npm ci --only=production --ignore-scripts \
+    && npm cache clean --force
 
 # ============================================
 # Stage 2: Production
 # ============================================
-FROM node:22-alpine AS production
+FROM node:25-alpine AS production
 
 # Set NODE_ENV
 ENV NODE_ENV=production
 
 # Create non-root user and group
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S nodejs \
+    && adduser -S nodejs -u 1001
 
 # Set working directory
 WORKDIR /app
