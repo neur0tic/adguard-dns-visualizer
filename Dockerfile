@@ -3,7 +3,7 @@
 # ============================================
 # Stage 1: Dependencies
 # ============================================
-FROM node:25-alpine3.22 AS dependencies
+FROM node:22-alpine AS dependencies
 
 # Set working directory
 WORKDIR /app
@@ -21,7 +21,7 @@ RUN npm ci --only=production --ignore-scripts && \
 # ============================================
 # Stage 2: Production
 # ============================================
-FROM node:25-alpine3.22 AS production
+FROM node:22-alpine AS production
 
 # Set NODE_ENV
 ENV NODE_ENV=production
