@@ -1,4 +1,4 @@
-# DNS Visualization Dashboard
+# Adguard DNS Visualization Dashboard
 
 A real-time visualization of DNS queries on a world map. Watch your network's DNS traffic as animated arcs connecting your location to servers around the globe.
 
