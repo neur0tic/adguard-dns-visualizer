@@ -47,7 +47,9 @@ const geoService = new GeoService(config.sourceLat, config.sourceLng, {
   retryDelay: parseInt(process.env.GEOIP_RETRY_DELAY),
   maxCacheSize: parseInt(process.env.GEOIP_MAX_CACHE_SIZE),
   maxRequestsPerMinute: parseInt(process.env.GEOIP_MAX_REQUESTS_PER_MINUTE),
-  minRequestDelay: parseInt(process.env.GEOIP_MIN_REQUEST_DELAY)
+  minRequestDelay: parseInt(process.env.GEOIP_MIN_REQUEST_DELAY),
+  sourceCity: process.env.SOURCE_CITY,
+  sourceCountry: process.env.SOURCE_COUNTRY
 });
 
 const app = express();
