@@ -4,9 +4,14 @@
   "description": "Real-time DNS traffic visualization dashboard using MapLibre and AdGuard Home",
   "main": "server/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "dev": "node --watch server/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "dns",
@@ -23,5 +28,8 @@
     "helmet": "^7.1.0",
     "node-fetch": "^3.3.2",
     "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.1"
   }
 }
