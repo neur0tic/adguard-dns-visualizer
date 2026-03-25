@@ -3,8 +3,8 @@ class GeoService {
     this.source = {
       lat: parseFloat(sourceLat),
       lng: parseFloat(sourceLng),
-      city: 'Kuala Lumpur',
-      country: 'MY'
+      city: options.sourceCity || 'Unknown',
+      country: options.sourceCountry || 'Unknown'
     };
 
     if (!this.isValidCoordinate(this.source.lat, this.source.lng)) {
@@ -286,6 +286,7 @@ class GeoService {
     }
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      console.warn(`GeoService: invalid GEOIP_API_URL "${url}", falling back to default`);
       return 'http://ip-api.com/json';
     }
 

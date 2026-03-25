@@ -17,7 +17,11 @@ const CONFIG = {
   RECONNECT_MAX_DELAY: 30000,
   RECONNECT_MAX_ATTEMPTS: 10,
   SOURCE_PULSE_THROTTLE: 100,
-  DESTINATION_GLOW_DURATION: 1500
+  DESTINATION_GLOW_DURATION: 1500,
+  LABEL_APPROX_WIDTH: 200,   // approximate rendered width of .arc-label in px
+  LABEL_APPROX_HEIGHT: 64,   // approximate rendered height of .arc-label in px
+  MAX_RESPONSE_SAMPLES: 200,
+  GLOW_CLEANUP_DELAY_MS: 100, // MapLibre needs one frame before layer removal after animation ends
 };
 
 const DNS_TYPE_COLORS = Object.freeze({
@@ -57,6 +61,49 @@ const state = {
   sourceMarker: null
 };
 
+// Central animation registry — replaces per-animation setInterval timers
+const _animations = new Map(); // key → { startTime, duration, onFrame, onComplete }
+let _rafId = null;
+
+function _scheduleAnimation(key, duration, onFrame, onComplete) {
+  _animations.set(key, { startTime: null, duration, onFrame, onComplete: onComplete || null });
+  if (_rafId === null) {
+    _rafId = requestAnimationFrame(_animationLoop);
+  }
+}
+
+function _cancelAnimation(key) {
+  _animations.delete(key);
+}
+
+function _animationLoop(timestamp) {
+  for (const [key, anim] of _animations) {
+    if (anim.startTime === null) anim.startTime = timestamp;
+    const t = Math.min((timestamp - anim.startTime) / anim.duration, 1);
+
+    try {
+      anim.onFrame(t);
+    } catch (error) {
+      console.error('Animation frame error:', error);
+      _animations.delete(key);
+      continue;
+    }
+
+    if (t >= 1) {
+      _animations.delete(key);
+      if (anim.onComplete) {
+        try { anim.onComplete(); } catch (e) { console.error('Animation complete error:', e); }
+      }
+    }
+  }
+
+  if (_animations.size > 0) {
+    _rafId = requestAnimationFrame(_animationLoop);
+  } else {
+    _rafId = null;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   try {
     initApp();
@@ -85,7 +132,7 @@ function setupEventListeners() {
   if (sidebarToggle) sidebarToggle.addEventListener('click', toggleSidebarPosition);
   if (sidebarHideToggle) sidebarHideToggle.addEventListener('click', toggleSidebarVisibility);
   if (sourceLocationToggle) sourceLocationToggle.addEventListener('click', openSourceLocationModal);
-  if (layoutToggle) layoutToggle.addEventListener('click', openLayoutModal);
+  if (layoutToggle) layoutToggle.addEventListener('click', cycleLayout);
 
   const filterLocalToggle = document.getElementById('filter-local-toggle');
   if (filterLocalToggle) {
@@ -359,10 +406,10 @@ function handleDNSQuery(event) {
   updateStats();
 
   addLogEntry({
-    domain: sanitizeString(event.data.domain),
-    ip: sanitizeString(event.data.ip) || 'No answer',
-    clientIp: sanitizeString(event.data.clientIp),
-    type: sanitizeString(event.data.queryType),
+    domain: trimString(event.data.domain),
+    ip: trimString(event.data.ip) || 'No answer',
+    clientIp: trimString(event.data.clientIp),
+    type: trimString(event.data.queryType),
     elapsed: parseFloat(event.data.elapsed) || 0,
     cached: event.data.cached || false,
     filtered: event.data.filtered || false,
@@ -376,13 +423,17 @@ function handleDNSQuery(event) {
   const elapsed = parseFloat(event.data.elapsed);
   if (!isNaN(elapsed) && elapsed > 0) {
     state.responseTimes.push(elapsed);
-    if (state.responseTimes.length > 100) state.responseTimes.shift();
+    if (state.responseTimes.length > CONFIG.MAX_RESPONSE_SAMPLES) {
+      state.responseTimes = state.responseTimes.slice(-CONFIG.MAX_RESPONSE_SAMPLES);
+    }
   }
 
   const upstreamElapsed = parseFloat(event.data.upstream);
   if (!isNaN(upstreamElapsed) && upstreamElapsed > 0) {
     state.upstreamTimes.push(upstreamElapsed);
-    if (state.upstreamTimes.length > 100) state.upstreamTimes.shift();
+    if (state.upstreamTimes.length > CONFIG.MAX_RESPONSE_SAMPLES) {
+      state.upstreamTimes = state.upstreamTimes.slice(-CONFIG.MAX_RESPONSE_SAMPLES);
+    }
   }
 }
 
@@ -463,45 +514,27 @@ function createArcGeometry(start, end) {
 
 function animateArc(arcId, lineString, destination, data, arcColor) {
   const steps = lineString.coordinates.length;
-  let currentStep = 0;
-  let trailCreated = false;
 
-  const interval = setInterval(() => {
-    try {
-      currentStep++;
-
-      if (currentStep >= steps) {
-        clearInterval(interval);
-
-        addArcLabel(destination, data);
-        createDestinationGlow(destination, arcColor);
-
-        if (!trailCreated) {
-          createArcTrail(lineString, arcColor);
-          trailCreated = true;
-        }
-
-        setTimeout(() => removeArc(arcId), 3000);
-        return;
-      }
-
-      const currentCoordinates = lineString.coordinates.slice(0, currentStep);
-
+  _scheduleAnimation(
+    arcId,
+    CONFIG.ARC_ANIMATION_DURATION,
+    (t) => {
+      const currentStep = Math.max(1, Math.floor(t * steps));
+      const currentCoords = lineString.coordinates.slice(0, currentStep);
       if (state.map.getSource(arcId)) {
         state.map.getSource(arcId).setData({
           type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: currentCoordinates
-          }
+          geometry: { type: 'LineString', coordinates: currentCoords }
         });
       }
-    } catch (error) {
-      console.error('Arc animation error:', error);
-      clearInterval(interval);
-      removeArc(arcId);
+    },
+    () => {
+      addArcLabel(destination, data);
+      createDestinationGlow(destination, arcColor);
+      createArcTrail(lineString, arcColor);
+      setTimeout(() => removeArc(arcId), 3000);
     }
-  }, CONFIG.ARC_ANIMATION_DURATION / steps);
+  );
 }
 
 function createArcTrail(lineString, arcColor) {
@@ -541,32 +574,23 @@ function createArcTrail(lineString, arcColor) {
 }
 
 function animateTrailFade(trailId, initialOpacity) {
-  const fadeSteps = 20;
-  const fadeInterval = CONFIG.ARC_TRAIL_LIFETIME / fadeSteps;
-  let currentFade = 0;
-
-  const fade = setInterval(() => {
-    try {
-      currentFade++;
-      const opacity = initialOpacity * (1 - currentFade / fadeSteps);
-
-      if (state.map.getLayer(trailId)) {
-        state.map.setPaintProperty(trailId, 'line-opacity', opacity);
-      } else {
-        clearInterval(fade);
+  _scheduleAnimation(
+    `fade-${trailId}`,
+    CONFIG.ARC_TRAIL_LIFETIME,
+    (t) => {
+      if (!state.map.getLayer(trailId)) {
+        _cancelAnimation(`fade-${trailId}`);
+        return;
       }
-
-      if (currentFade >= fadeSteps) {
-        clearInterval(fade);
-      }
-    } catch (error) {
-      console.error('Trail fade animation error:', error);
-      clearInterval(fade);
-    }
-  }, fadeInterval);
+      state.map.setPaintProperty(trailId, 'line-opacity', initialOpacity * (1 - t));
+    },
+    null
+  );
 }
 
 function removeArc(arcId) {
+  _cancelAnimation(arcId); // cancel rAF animation if still running
+  _cancelAnimation(`fade-${arcId}`);
   try {
     if (state.map.getLayer(arcId)) {
       state.map.removeLayer(arcId);
@@ -633,45 +657,32 @@ function createDestinationGlow(destination, color) {
 }
 
 function animateGlow(glowId, layer1, layer2) {
-  const steps = 30;
-  const stepDuration = CONFIG.DESTINATION_GLOW_DURATION / steps;
-  let currentStep = 0;
-
-  const glowInterval = setInterval(() => {
-    try {
-      currentStep++;
-      const progress = currentStep / steps;
-      const scale = 1 + (progress * 2);
-      const opacity1 = 0.6 * (1 - progress);
-      const opacity2 = 0.8 * (1 - progress);
-
+  _scheduleAnimation(
+    `glow-${glowId}`,
+    CONFIG.DESTINATION_GLOW_DURATION,
+    (t) => {
+      const scale = 1 + (t * 2);
       if (state.map.getLayer(layer1)) {
         state.map.setPaintProperty(layer1, 'circle-radius', 30 * scale);
-        state.map.setPaintProperty(layer1, 'circle-opacity', opacity1);
+        state.map.setPaintProperty(layer1, 'circle-opacity', 0.6 * (1 - t));
       }
-
       if (state.map.getLayer(layer2)) {
         state.map.setPaintProperty(layer2, 'circle-radius', 15 * scale);
-        state.map.setPaintProperty(layer2, 'circle-opacity', opacity2);
+        state.map.setPaintProperty(layer2, 'circle-opacity', 0.8 * (1 - t));
       }
-
-      if (currentStep >= steps) {
-        clearInterval(glowInterval);
-        setTimeout(() => {
-          try {
-            if (state.map.getLayer(layer1)) state.map.removeLayer(layer1);
-            if (state.map.getLayer(layer2)) state.map.removeLayer(layer2);
-            if (state.map.getSource(glowId)) state.map.removeSource(glowId);
-          } catch (error) {
-            console.warn('Error cleaning up glow:', error);
-          }
-        }, 100);
-      }
-    } catch (error) {
-      console.error('Glow animation error:', error);
-      clearInterval(glowInterval);
+    },
+    () => {
+      setTimeout(() => {
+        try {
+          if (state.map.getLayer(layer1)) state.map.removeLayer(layer1);
+          if (state.map.getLayer(layer2)) state.map.removeLayer(layer2);
+          if (state.map.getSource(glowId)) state.map.removeSource(glowId);
+        } catch (e) {
+          console.warn('Error cleaning up glow:', e);
+        }
+      }, CONFIG.GLOW_CLEANUP_DELAY_MS);
     }
-  }, stepDuration);
+  );
 }
 
 function triggerSourcePulse() {
@@ -718,7 +729,6 @@ function addArcLabel(destination, data) {
 
     const label = document.createElement('div');
     label.className = 'arc-label';
-    label.style.opacity = '0';
 
     if (data.filtered) label.classList.add('arc-label-priority');
 
@@ -739,23 +749,21 @@ function addArcLabel(destination, data) {
       <div class="label-detail">${city}, ${country}</div>
     `;
 
-    document.body.appendChild(label);
-
-    const rect = label.getBoundingClientRect();
-    const labelWidth = rect.width;
-    const labelHeight = rect.height;
+    const labelWidth = CONFIG.LABEL_APPROX_WIDTH;
+    const labelHeight = CONFIG.LABEL_APPROX_HEIGHT;
 
     const position = findNonOverlappingPosition(point.x, point.y, labelWidth, labelHeight);
 
     if (!position && CONFIG.LABEL_QUEUE_ENABLED) {
-      label.remove();
       queueLabel(destination, data);
       return;
     }
 
     label.style.left = `${position.x}px`;
     label.style.top = `${position.y}px`;
-    label.style.opacity = '1';
+    label.style.opacity = '0';
+    document.body.appendChild(label);
+    requestAnimationFrame(() => { label.style.opacity = '1'; });
 
     state.activeLabels++;
 
@@ -1021,11 +1029,11 @@ function updateStatus(status, text) {
     }
 
     if (statusText) {
-      statusText.textContent = sanitizeString(text);
+      statusText.textContent = trimString(text);
     }
 
     if (statusTextTop) {
-      statusTextTop.textContent = sanitizeString(text);
+      statusTextTop.textContent = trimString(text);
     }
   } catch (error) {
     console.error('Error updating status:', error);
@@ -1185,7 +1193,9 @@ function applyDarkMode() {
           state.map.setPaintProperty(layer.id, 'text-halo-blur', 1);
           state.map.setPaintProperty(layer.id, 'text-opacity', 0.4);
         }
-      } catch (error) { }
+      } catch (error) {
+        console.warn('applyDarkMode: failed to set paint property on layer', layer.id, error);
+      }
     });
   } catch (error) {
     console.error('Error applying dark mode:', error);
@@ -1196,7 +1206,7 @@ function getColorForDNSType(type) {
   return DNS_TYPE_COLORS[type] || DNS_TYPE_COLORS.A;
 }
 
-function sanitizeString(str) {
+function trimString(str) {
   if (typeof str !== 'string') return '';
   return str.trim();
 }
@@ -1245,9 +1255,11 @@ function cleanup() {
     clearInterval(state.statsUpdateIntervalId);
   }
 
-  if (state.chartAnimationFrameId) {
-    cancelAnimationFrame(state.chartAnimationFrameId);
+  if (_rafId !== null) {
+    cancelAnimationFrame(_rafId);
+    _rafId = null;
   }
+  _animations.clear();
 }
 
 window.addEventListener('error', (event) => {
@@ -1367,10 +1379,6 @@ function closeSourceLocationModal() {
   if (modal) {
     modal.classList.remove('active');
   }
-}
-
-function openLayoutModal() {
-  cycleLayout();
 }
 
 function populateCityPresets() {
