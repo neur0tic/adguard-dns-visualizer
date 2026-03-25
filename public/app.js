@@ -57,6 +57,49 @@ const state = {
   sourceMarker: null
 };
 
+// Central animation registry — replaces per-animation setInterval timers
+const _animations = new Map(); // key → { startTime, duration, onFrame, onComplete }
+let _rafId = null;
+
+function _scheduleAnimation(key, duration, onFrame, onComplete) {
+  _animations.set(key, { startTime: null, duration, onFrame, onComplete: onComplete || null });
+  if (_rafId === null) {
+    _rafId = requestAnimationFrame(_animationLoop);
+  }
+}
+
+function _cancelAnimation(key) {
+  _animations.delete(key);
+}
+
+function _animationLoop(timestamp) {
+  for (const [key, anim] of _animations) {
+    if (anim.startTime === null) anim.startTime = timestamp;
+    const t = Math.min((timestamp - anim.startTime) / anim.duration, 1);
+
+    try {
+      anim.onFrame(t);
+    } catch (error) {
+      console.error('Animation frame error:', error);
+      _animations.delete(key);
+      continue;
+    }
+
+    if (t >= 1) {
+      _animations.delete(key);
+      if (anim.onComplete) {
+        try { anim.onComplete(); } catch (e) { console.error('Animation complete error:', e); }
+      }
+    }
+  }
+
+  if (_animations.size > 0) {
+    _rafId = requestAnimationFrame(_animationLoop);
+  } else {
+    _rafId = null;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   try {
     initApp();
@@ -463,45 +506,27 @@ function createArcGeometry(start, end) {
 
 function animateArc(arcId, lineString, destination, data, arcColor) {
   const steps = lineString.coordinates.length;
-  let currentStep = 0;
-  let trailCreated = false;
 
-  const interval = setInterval(() => {
-    try {
-      currentStep++;
-
-      if (currentStep >= steps) {
-        clearInterval(interval);
-
-        addArcLabel(destination, data);
-        createDestinationGlow(destination, arcColor);
-
-        if (!trailCreated) {
-          createArcTrail(lineString, arcColor);
-          trailCreated = true;
-        }
-
-        setTimeout(() => removeArc(arcId), 3000);
-        return;
-      }
-
-      const currentCoordinates = lineString.coordinates.slice(0, currentStep);
-
+  _scheduleAnimation(
+    arcId,
+    CONFIG.ARC_ANIMATION_DURATION,
+    (t) => {
+      const currentStep = Math.max(1, Math.floor(t * steps));
+      const currentCoords = lineString.coordinates.slice(0, currentStep);
       if (state.map.getSource(arcId)) {
         state.map.getSource(arcId).setData({
           type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: currentCoordinates
-          }
+          geometry: { type: 'LineString', coordinates: currentCoords }
         });
       }
-    } catch (error) {
-      console.error('Arc animation error:', error);
-      clearInterval(interval);
-      removeArc(arcId);
+    },
+    () => {
+      addArcLabel(destination, data);
+      createDestinationGlow(destination, arcColor);
+      createArcTrail(lineString, arcColor);
+      setTimeout(() => removeArc(arcId), 3000);
     }
-  }, CONFIG.ARC_ANIMATION_DURATION / steps);
+  );
 }
 
 function createArcTrail(lineString, arcColor) {
@@ -541,32 +566,22 @@ function createArcTrail(lineString, arcColor) {
 }
 
 function animateTrailFade(trailId, initialOpacity) {
-  const fadeSteps = 20;
-  const fadeInterval = CONFIG.ARC_TRAIL_LIFETIME / fadeSteps;
-  let currentFade = 0;
-
-  const fade = setInterval(() => {
-    try {
-      currentFade++;
-      const opacity = initialOpacity * (1 - currentFade / fadeSteps);
-
-      if (state.map.getLayer(trailId)) {
-        state.map.setPaintProperty(trailId, 'line-opacity', opacity);
-      } else {
-        clearInterval(fade);
+  _scheduleAnimation(
+    `fade-${trailId}`,
+    CONFIG.ARC_TRAIL_LIFETIME,
+    (t) => {
+      if (!state.map.getLayer(trailId)) {
+        _cancelAnimation(`fade-${trailId}`);
+        return;
       }
-
-      if (currentFade >= fadeSteps) {
-        clearInterval(fade);
-      }
-    } catch (error) {
-      console.error('Trail fade animation error:', error);
-      clearInterval(fade);
-    }
-  }, fadeInterval);
+      state.map.setPaintProperty(trailId, 'line-opacity', initialOpacity * (1 - t));
+    },
+    null
+  );
 }
 
 function removeArc(arcId) {
+  _cancelAnimation(arcId); // cancel rAF animation if still running
   try {
     if (state.map.getLayer(arcId)) {
       state.map.removeLayer(arcId);
@@ -633,45 +648,32 @@ function createDestinationGlow(destination, color) {
 }
 
 function animateGlow(glowId, layer1, layer2) {
-  const steps = 30;
-  const stepDuration = CONFIG.DESTINATION_GLOW_DURATION / steps;
-  let currentStep = 0;
-
-  const glowInterval = setInterval(() => {
-    try {
-      currentStep++;
-      const progress = currentStep / steps;
-      const scale = 1 + (progress * 2);
-      const opacity1 = 0.6 * (1 - progress);
-      const opacity2 = 0.8 * (1 - progress);
-
+  _scheduleAnimation(
+    `glow-${glowId}`,
+    CONFIG.DESTINATION_GLOW_DURATION,
+    (t) => {
+      const scale = 1 + (t * 2);
       if (state.map.getLayer(layer1)) {
         state.map.setPaintProperty(layer1, 'circle-radius', 30 * scale);
-        state.map.setPaintProperty(layer1, 'circle-opacity', opacity1);
+        state.map.setPaintProperty(layer1, 'circle-opacity', 0.6 * (1 - t));
       }
-
       if (state.map.getLayer(layer2)) {
         state.map.setPaintProperty(layer2, 'circle-radius', 15 * scale);
-        state.map.setPaintProperty(layer2, 'circle-opacity', opacity2);
+        state.map.setPaintProperty(layer2, 'circle-opacity', 0.8 * (1 - t));
       }
-
-      if (currentStep >= steps) {
-        clearInterval(glowInterval);
-        setTimeout(() => {
-          try {
-            if (state.map.getLayer(layer1)) state.map.removeLayer(layer1);
-            if (state.map.getLayer(layer2)) state.map.removeLayer(layer2);
-            if (state.map.getSource(glowId)) state.map.removeSource(glowId);
-          } catch (error) {
-            console.warn('Error cleaning up glow:', error);
-          }
-        }, 100);
-      }
-    } catch (error) {
-      console.error('Glow animation error:', error);
-      clearInterval(glowInterval);
+    },
+    () => {
+      setTimeout(() => {
+        try {
+          if (state.map.getLayer(layer1)) state.map.removeLayer(layer1);
+          if (state.map.getLayer(layer2)) state.map.removeLayer(layer2);
+          if (state.map.getSource(glowId)) state.map.removeSource(glowId);
+        } catch (e) {
+          console.warn('Error cleaning up glow:', e);
+        }
+      }, 100);
     }
-  }, stepDuration);
+  );
 }
 
 function triggerSourcePulse() {
@@ -1246,6 +1248,12 @@ function cleanup() {
   if (state.statsUpdateIntervalId) {
     clearInterval(state.statsUpdateIntervalId);
   }
+
+  if (_rafId !== null) {
+    cancelAnimationFrame(_rafId);
+    _rafId = null;
+  }
+  _animations.clear();
 }
 
 window.addEventListener('error', (event) => {
