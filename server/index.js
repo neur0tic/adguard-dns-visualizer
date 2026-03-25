@@ -317,10 +317,11 @@ class DNSPoller {
   }
 
   shutdown() {
-    this.stopPolling();
     this.activeConnections.forEach(ws => {
       ws.close(1000, 'Server shutting down');
     });
+    this.activeConnections.clear();
+    this.stopPolling();
   }
 }
 
