@@ -46,6 +46,10 @@ describe('AdGuardClient.sanitizeIP', () => {
     expect(client.sanitizeIP('[::1]:53')).toBe('::1');
   });
 
+  it('strips port from plain IPv4:port', () => {
+    expect(client.sanitizeIP('192.168.1.1:8080')).toBe('192.168.1.1');
+  });
+
   it('returns unknown for null', () => {
     expect(client.sanitizeIP(null)).toBe('unknown');
   });

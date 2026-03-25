@@ -243,10 +243,20 @@ class AdGuardClient {
    */
   sanitizeIP(ip) {
     if (!ip || typeof ip !== 'string') return 'unknown';
-    
-    // Remove port if present (handle both IPv4:port and [IPv6]:port)
-    const match = ip.match(/^\[?([^\]]+)\]?(?::\d+)?$/);
-    return match ? match[1] : ip;
+
+    // Bracketed IPv6 with optional port: [::1]:53 → ::1
+    const bracketedMatch = ip.match(/^\[([^\]]+)\](?::\d+)?$/);
+    if (bracketedMatch) return bracketedMatch[1];
+
+    // Plain IPv4 with port: 1.2.3.4:5353 → 1.2.3.4
+    // Only strip when there is exactly one colon (multiple colons = bare IPv6, no port)
+    const colonCount = (ip.match(/:/g) || []).length;
+    if (colonCount === 1) {
+      const [host, port] = ip.split(':');
+      if (/^\d+$/.test(port)) return host;
+    }
+
+    return ip;
   }
 
   /**
