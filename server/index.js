@@ -197,7 +197,8 @@ async function pollStats() {
   });
 }
 
-async function processDNSEntry(entry) {
+async function processDNSEntry(rawEntry) {
+  const entry = { ...rawEntry }; // shallow copy — prevents mutating the caller's object
   const source = geoService.getSource();
 
   console.log(`\n🔍 Processing DNS Entry: ${entry.domain} (${entry.type}) - IP: ${entry.answer?.join(', ') || 'none'}`);
