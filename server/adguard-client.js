@@ -1,6 +1,11 @@
 import fetch from 'node-fetch';
 import dns from 'dns/promises';
 
+// Proportion of total query time attributed to upstream DNS (non-cached queries with upstream server)
+const UPSTREAM_TIME_RATIO = 0.85;
+// Proportion of total query time attributed to upstream DNS (local responses with no upstream listed)
+const LOCAL_RESPONSE_UPSTREAM_RATIO = 0.5;
+
 /**
  * AdGuard Home API Client
  * Handles authentication and fetching DNS query logs with proper error handling
@@ -16,10 +21,9 @@ class AdGuardClient {
 
   /**
    * Fetch DNS query logs from AdGuard Home
-   * @param {number} limit - Number of logs to fetch (not used by AdGuard API)
    * @returns {Promise<Array>} Array of DNS query log entries
    */
-  async getQueryLog(limit = 50) {
+  async getQueryLog() {
     const url = `${this.baseUrl}/control/querylog`;
     
     try {
@@ -101,10 +105,10 @@ class AdGuardClient {
         upstreamElapsed = 0; // Cached responses don't hit upstream
       } else if (totalElapsed > 0 && log.upstream) {
         // Query went to upstream DNS server - estimate upstream time
-        upstreamElapsed = (totalElapsed * 0.85).toFixed(2);
+        upstreamElapsed = (totalElapsed * UPSTREAM_TIME_RATIO).toFixed(2);
       } else if (totalElapsed > 0) {
         // No upstream server listed but query processed (possibly local response)
-        upstreamElapsed = (totalElapsed * 0.5).toFixed(2);
+        upstreamElapsed = (totalElapsed * LOCAL_RESPONSE_UPSTREAM_RATIO).toFixed(2);
       }
 
       const parsedAnswer = this.parseAnswer(log.answer);
@@ -304,7 +308,7 @@ class AdGuardClient {
     } catch (error) {
       if (retryCount < this.maxRetries) {
         console.warn(`Retry ${retryCount + 1}/${this.maxRetries} for ${url}: ${error.message}`);
-        await this._delay(this.retryDelay * (retryCount + 1)); // Exponential backoff
+        await this._delay(this.retryDelay * (retryCount + 1)); // Linear backoff: 1×, 2×, 3× delay
         return this._fetchWithRetry(url, options, retryCount + 1);
       }
       
