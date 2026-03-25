@@ -26,7 +26,7 @@ const config = {
 };
 
 const requiredEnvVars = ['ADGUARD_URL', 'ADGUARD_USERNAME', 'ADGUARD_PASSWORD'];
-const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]?.trim());
 
 if (missingEnvVars.length > 0) {
   console.error(`❌ Missing required environment variables: ${missingEnvVars.join(', ')}`);
@@ -40,14 +40,16 @@ const adguardClient = new AdGuardClient(
   process.env.ADGUARD_PASSWORD
 );
 
+const parseEnvInt = (val) => val ? parseInt(val, 10) : undefined;
+
 const geoService = new GeoService(config.sourceLat, config.sourceLng, {
   apiUrl: process.env.GEOIP_API_URL,
-  apiTimeout: parseInt(process.env.GEOIP_API_TIMEOUT),
-  maxRetries: parseInt(process.env.GEOIP_MAX_RETRIES),
-  retryDelay: parseInt(process.env.GEOIP_RETRY_DELAY),
-  maxCacheSize: parseInt(process.env.GEOIP_MAX_CACHE_SIZE),
-  maxRequestsPerMinute: parseInt(process.env.GEOIP_MAX_REQUESTS_PER_MINUTE),
-  minRequestDelay: parseInt(process.env.GEOIP_MIN_REQUEST_DELAY),
+  apiTimeout: parseEnvInt(process.env.GEOIP_API_TIMEOUT),
+  maxRetries: parseEnvInt(process.env.GEOIP_MAX_RETRIES),
+  retryDelay: parseEnvInt(process.env.GEOIP_RETRY_DELAY),
+  maxCacheSize: parseEnvInt(process.env.GEOIP_MAX_CACHE_SIZE),
+  maxRequestsPerMinute: parseEnvInt(process.env.GEOIP_MAX_REQUESTS_PER_MINUTE),
+  minRequestDelay: parseEnvInt(process.env.GEOIP_MIN_REQUEST_DELAY),
   sourceCity: process.env.SOURCE_CITY,
   sourceCountry: process.env.SOURCE_COUNTRY
 });
@@ -61,8 +63,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-      connectSrc: ["'self'", "ws:", "wss:", "https://unpkg.com", "https://demotiles.maplibre.org"],
+      scriptSrc: ["'self'", "https://unpkg.com"],
+      connectSrc: ["'self'", "https://unpkg.com", "https://demotiles.maplibre.org"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       workerSrc: ["'self'", "blob:"],
       childSrc: ["'self'", "blob:"],
@@ -398,11 +400,12 @@ function gracefulShutdown(signal) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 server.listen(config.port, () => {
+  const sourceCity = process.env.SOURCE_CITY || 'configured location';
   console.log(`\n🚀 DNS Visualization Dashboard`);
   console.log(`📡 Server running on http://localhost:${config.port}`);
   console.log(`🔄 Polling interval: ${config.pollInterval}ms`);
   console.log(`📊 Stats interval: ${config.statsInterval}ms`);
-  console.log(`🌍 Source location: Kuala Lumpur (${config.sourceLat}, ${config.sourceLng})`);
+  console.log(`🌍 Source location: ${sourceCity} (${config.sourceLat}, ${config.sourceLng})`);
   console.log(`🔒 Environment: ${config.nodeEnv}`);
   console.log(`\nWaiting for client connections...\n`);
 });
