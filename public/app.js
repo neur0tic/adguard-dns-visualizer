@@ -85,7 +85,7 @@ function setupEventListeners() {
   if (sidebarToggle) sidebarToggle.addEventListener('click', toggleSidebarPosition);
   if (sidebarHideToggle) sidebarHideToggle.addEventListener('click', toggleSidebarVisibility);
   if (sourceLocationToggle) sourceLocationToggle.addEventListener('click', openSourceLocationModal);
-  if (layoutToggle) layoutToggle.addEventListener('click', openLayoutModal);
+  if (layoutToggle) layoutToggle.addEventListener('click', cycleLayoutOnClick);
 
   const filterLocalToggle = document.getElementById('filter-local-toggle');
   if (filterLocalToggle) {
@@ -359,10 +359,10 @@ function handleDNSQuery(event) {
   updateStats();
 
   addLogEntry({
-    domain: sanitizeString(event.data.domain),
-    ip: sanitizeString(event.data.ip) || 'No answer',
-    clientIp: sanitizeString(event.data.clientIp),
-    type: sanitizeString(event.data.queryType),
+    domain: trimString(event.data.domain),
+    ip: trimString(event.data.ip) || 'No answer',
+    clientIp: trimString(event.data.clientIp),
+    type: trimString(event.data.queryType),
     elapsed: parseFloat(event.data.elapsed) || 0,
     cached: event.data.cached || false,
     filtered: event.data.filtered || false,
@@ -1021,11 +1021,11 @@ function updateStatus(status, text) {
     }
 
     if (statusText) {
-      statusText.textContent = sanitizeString(text);
+      statusText.textContent = trimString(text);
     }
 
     if (statusTextTop) {
-      statusTextTop.textContent = sanitizeString(text);
+      statusTextTop.textContent = trimString(text);
     }
   } catch (error) {
     console.error('Error updating status:', error);
@@ -1185,7 +1185,9 @@ function applyDarkMode() {
           state.map.setPaintProperty(layer.id, 'text-halo-blur', 1);
           state.map.setPaintProperty(layer.id, 'text-opacity', 0.4);
         }
-      } catch (error) { }
+      } catch (error) {
+        console.warn('applyDarkMode: failed to set paint property on layer', layer.id, error);
+      }
     });
   } catch (error) {
     console.error('Error applying dark mode:', error);
@@ -1196,7 +1198,7 @@ function getColorForDNSType(type) {
   return DNS_TYPE_COLORS[type] || DNS_TYPE_COLORS.A;
 }
 
-function sanitizeString(str) {
+function trimString(str) {
   if (typeof str !== 'string') return '';
   return str.trim();
 }
@@ -1243,10 +1245,6 @@ function cleanup() {
 
   if (state.statsUpdateIntervalId) {
     clearInterval(state.statsUpdateIntervalId);
-  }
-
-  if (state.chartAnimationFrameId) {
-    cancelAnimationFrame(state.chartAnimationFrameId);
   }
 }
 
@@ -1369,7 +1367,7 @@ function closeSourceLocationModal() {
   }
 }
 
-function openLayoutModal() {
+function cycleLayoutOnClick() {
   cycleLayout();
 }
 
