@@ -17,7 +17,9 @@ const CONFIG = {
   RECONNECT_MAX_DELAY: 30000,
   RECONNECT_MAX_ATTEMPTS: 10,
   SOURCE_PULSE_THROTTLE: 100,
-  DESTINATION_GLOW_DURATION: 1500
+  DESTINATION_GLOW_DURATION: 1500,
+  LABEL_APPROX_WIDTH: 200,   // approximate rendered width of .arc-label in px
+  LABEL_APPROX_HEIGHT: 64    // approximate rendered height of .arc-label in px
 };
 
 const DNS_TYPE_COLORS = Object.freeze({
@@ -720,7 +722,6 @@ function addArcLabel(destination, data) {
 
     const label = document.createElement('div');
     label.className = 'arc-label';
-    label.style.opacity = '0';
 
     if (data.filtered) label.classList.add('arc-label-priority');
 
@@ -741,23 +742,21 @@ function addArcLabel(destination, data) {
       <div class="label-detail">${city}, ${country}</div>
     `;
 
-    document.body.appendChild(label);
-
-    const rect = label.getBoundingClientRect();
-    const labelWidth = rect.width;
-    const labelHeight = rect.height;
+    const labelWidth = CONFIG.LABEL_APPROX_WIDTH;
+    const labelHeight = CONFIG.LABEL_APPROX_HEIGHT;
 
     const position = findNonOverlappingPosition(point.x, point.y, labelWidth, labelHeight);
 
     if (!position && CONFIG.LABEL_QUEUE_ENABLED) {
-      label.remove();
       queueLabel(destination, data);
       return;
     }
 
     label.style.left = `${position.x}px`;
     label.style.top = `${position.y}px`;
-    label.style.opacity = '1';
+    label.style.opacity = '0';
+    document.body.appendChild(label);
+    requestAnimationFrame(() => { label.style.opacity = '1'; });
 
     state.activeLabels++;
 
