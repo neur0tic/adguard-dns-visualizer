@@ -105,10 +105,10 @@ class AdGuardClient {
         upstreamElapsed = 0; // Cached responses don't hit upstream
       } else if (totalElapsed > 0 && log.upstream) {
         // Query went to upstream DNS server - estimate upstream time
-        upstreamElapsed = (totalElapsed * UPSTREAM_TIME_RATIO).toFixed(2);
+        upstreamElapsed = parseFloat((totalElapsed * UPSTREAM_TIME_RATIO).toFixed(2));
       } else if (totalElapsed > 0) {
         // No upstream server listed but query processed (possibly local response)
-        upstreamElapsed = (totalElapsed * LOCAL_RESPONSE_UPSTREAM_RATIO).toFixed(2);
+        upstreamElapsed = parseFloat((totalElapsed * LOCAL_RESPONSE_UPSTREAM_RATIO).toFixed(2));
       }
 
       const parsedAnswer = this.parseAnswer(log.answer);

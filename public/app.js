@@ -19,7 +19,9 @@ const CONFIG = {
   SOURCE_PULSE_THROTTLE: 100,
   DESTINATION_GLOW_DURATION: 1500,
   LABEL_APPROX_WIDTH: 200,   // approximate rendered width of .arc-label in px
-  LABEL_APPROX_HEIGHT: 64    // approximate rendered height of .arc-label in px
+  LABEL_APPROX_HEIGHT: 64,   // approximate rendered height of .arc-label in px
+  MAX_RESPONSE_SAMPLES: 200,
+  GLOW_CLEANUP_DELAY_MS: 100, // MapLibre needs one frame before layer removal after animation ends
 };
 
 const DNS_TYPE_COLORS = Object.freeze({
@@ -130,7 +132,7 @@ function setupEventListeners() {
   if (sidebarToggle) sidebarToggle.addEventListener('click', toggleSidebarPosition);
   if (sidebarHideToggle) sidebarHideToggle.addEventListener('click', toggleSidebarVisibility);
   if (sourceLocationToggle) sourceLocationToggle.addEventListener('click', openSourceLocationModal);
-  if (layoutToggle) layoutToggle.addEventListener('click', cycleLayoutOnClick);
+  if (layoutToggle) layoutToggle.addEventListener('click', cycleLayout);
 
   const filterLocalToggle = document.getElementById('filter-local-toggle');
   if (filterLocalToggle) {
@@ -421,13 +423,17 @@ function handleDNSQuery(event) {
   const elapsed = parseFloat(event.data.elapsed);
   if (!isNaN(elapsed) && elapsed > 0) {
     state.responseTimes.push(elapsed);
-    if (state.responseTimes.length > 100) state.responseTimes.shift();
+    if (state.responseTimes.length > CONFIG.MAX_RESPONSE_SAMPLES) {
+      state.responseTimes = state.responseTimes.slice(-CONFIG.MAX_RESPONSE_SAMPLES);
+    }
   }
 
   const upstreamElapsed = parseFloat(event.data.upstream);
   if (!isNaN(upstreamElapsed) && upstreamElapsed > 0) {
     state.upstreamTimes.push(upstreamElapsed);
-    if (state.upstreamTimes.length > 100) state.upstreamTimes.shift();
+    if (state.upstreamTimes.length > CONFIG.MAX_RESPONSE_SAMPLES) {
+      state.upstreamTimes = state.upstreamTimes.slice(-CONFIG.MAX_RESPONSE_SAMPLES);
+    }
   }
 }
 
@@ -584,6 +590,7 @@ function animateTrailFade(trailId, initialOpacity) {
 
 function removeArc(arcId) {
   _cancelAnimation(arcId); // cancel rAF animation if still running
+  _cancelAnimation(`fade-${arcId}`);
   try {
     if (state.map.getLayer(arcId)) {
       state.map.removeLayer(arcId);
@@ -673,7 +680,7 @@ function animateGlow(glowId, layer1, layer2) {
         } catch (e) {
           console.warn('Error cleaning up glow:', e);
         }
-      }, 100);
+      }, CONFIG.GLOW_CLEANUP_DELAY_MS);
     }
   );
 }
@@ -1372,10 +1379,6 @@ function closeSourceLocationModal() {
   if (modal) {
     modal.classList.remove('active');
   }
-}
-
-function cycleLayoutOnClick() {
-  cycleLayout();
 }
 
 function populateCityPresets() {
