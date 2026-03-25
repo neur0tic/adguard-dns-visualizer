@@ -14,12 +14,14 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const parseEnvInt = (val) => val ? parseInt(val, 10) : undefined;
+
 const config = {
-  port: parseInt(process.env.PORT) || 8080,
-  pollInterval: parseInt(process.env.POLL_INTERVAL_MS) || 2000,
-  statsInterval: parseInt(process.env.STATS_INTERVAL_MS) || 5000,
-  maxProcessedIds: parseInt(process.env.MAX_PROCESSED_IDS) || 1000,
-  maxConcurrentArcs: parseInt(process.env.MAX_CONCURRENT_ARCS) || 50,
+  port: parseEnvInt(process.env.PORT) || 8080,
+  pollInterval: parseEnvInt(process.env.POLL_INTERVAL_MS) || 2000,
+  statsInterval: parseEnvInt(process.env.STATS_INTERVAL_MS) || 5000,
+  maxProcessedIds: parseEnvInt(process.env.MAX_PROCESSED_IDS) || 1000,
+  maxConcurrentArcs: parseEnvInt(process.env.MAX_CONCURRENT_ARCS) || 50,
   sourceLat: parseFloat(process.env.SOURCE_LAT) || 3.139,
   sourceLng: parseFloat(process.env.SOURCE_LNG) || 101.6869,
   nodeEnv: process.env.NODE_ENV || 'development'
@@ -39,8 +41,6 @@ const adguardClient = new AdGuardClient(
   process.env.ADGUARD_USERNAME,
   process.env.ADGUARD_PASSWORD
 );
-
-const parseEnvInt = (val) => val ? parseInt(val, 10) : undefined;
 
 const geoService = new GeoService(config.sourceLat, config.sourceLng, {
   apiUrl: process.env.GEOIP_API_URL,
@@ -168,102 +168,74 @@ class DNSPoller {
     });
   }
 
+  async _resolveToIPs(target, label) {
+    try {
+      const ips = await this.adguardClient.resolveCNAME(target);
+      if (ips && ips.length > 0) {
+        console.log(`✅ ${label} resolved to ${ips.join(', ')}`);
+        return ips;
+      }
+      console.log(`⚠️  ${label} resolution failed`);
+    } catch (error) {
+      console.error(`❌ ${label} resolution error:`, error.message);
+    }
+    return null;
+  }
+
   async processDNSEntry(rawEntry) {
-    const entry = { ...rawEntry }; // shallow copy — prevents mutating the caller's object
+    const entry = { ...rawEntry };
     const source = this.geoService.getSource();
 
     console.log(`\n🔍 Processing DNS Entry: ${entry.domain} (${entry.type}) - IP: ${entry.answer?.join(', ') || 'none'}`);
 
     if (!entry.answer || entry.answer.length === 0) {
       if (entry.cname && !entry.filtered) {
-        console.log(`📋 Resolving CNAME: ${entry.domain} → ${entry.cname}`);
-        try {
-          const resolvedIps = await this.adguardClient.resolveCNAME(entry.cname);
-          if (resolvedIps && resolvedIps.length > 0) {
-            console.log(`✅ CNAME resolved: ${entry.cname} → ${resolvedIps.join(', ')}`);
-            entry.answer = resolvedIps;
-            entry.resolvedFromCname = true;
-          } else {
-            console.log(`⚠️  CNAME resolution failed for ${entry.cname}`);
-          }
-        } catch (error) {
-          console.error(`❌ Error resolving CNAME ${entry.cname}:`, error.message);
-        }
+        const ips = await this._resolveToIPs(entry.cname, `CNAME ${entry.cname}`);
+        if (ips) { entry.answer = ips; entry.resolvedFromCname = true; }
       }
 
       if (!entry.answer || entry.answer.length === 0) {
         const nonIpRecordTypes = ['HTTPS', 'SRV', 'MX', 'TXT', 'NS', 'SOA', 'CAA', 'DNSKEY', 'DS'];
         if (nonIpRecordTypes.includes(entry.type) && !entry.filtered) {
-          console.log(`📋 ${entry.type} record for ${entry.domain} has no IPs, attempting A/AAAA resolution`);
-          try {
-            const resolvedIps = await this.adguardClient.resolveCNAME(entry.domain);
-            if (resolvedIps && resolvedIps.length > 0) {
-              console.log(`✅ ${entry.type} → A/AAAA resolved: ${entry.domain} → ${resolvedIps.join(', ')}`);
-              entry.answer = resolvedIps;
-              entry.resolvedFromNonIpRecord = true;
-            } else {
-              console.log(`⚠️  ${entry.type} resolution to A/AAAA failed for ${entry.domain}`);
-            }
-          } catch (error) {
-            console.error(`❌ Error resolving ${entry.type} record ${entry.domain}:`, error.message);
-          }
+          const ips = await this._resolveToIPs(entry.domain, `${entry.type}→A/AAAA ${entry.domain}`);
+          if (ips) { entry.answer = ips; entry.resolvedFromNonIpRecord = true; }
         }
       }
 
       if (!entry.answer || entry.answer.length === 0) {
-        if (entry.filtered) {
-          if (Math.random() < 0.1) {
-            console.log(`🚫 Blocked by AdGuard: ${entry.domain} (reason: ${entry.reason})`);
-          }
-
-          this.broadcast({
-            type: 'dns_query',
-            timestamp: entry.timestamp.toISOString(),
-            source,
-            destination: null,
-            data: {
-              domain: entry.domain,
-              ip: 'Blocked',
-              queryType: entry.type,
-              elapsed: entry.elapsed,
-              upstream: entry.upstreamElapsed,
-              cached: entry.cached,
-              filtered: true,
-              clientIp: entry.client,
-              status: entry.status
-            }
-          });
-        } else {
-          if (Math.random() < 0.05) {
-            const statusMsg = entry.status === 'NXDOMAIN' ? 'domain not found' : 'no IP addresses';
-            console.log(`ℹ️  No geolocatable IPs: ${entry.domain} (${statusMsg}, reason: ${entry.reason})`);
-          }
-
-          this.broadcast({
-            type: 'dns_query',
-            timestamp: entry.timestamp.toISOString(),
-            source,
-            destination: null,
-            data: {
-              domain: entry.domain,
-              ip: 'No Answer',
-              queryType: entry.type,
-              elapsed: entry.elapsed,
-              upstream: entry.upstreamElapsed,
-              cached: entry.cached,
-              filtered: false,
-              clientIp: entry.client,
-              status: entry.status
-            }
-          });
+        if (Math.random() < (entry.filtered ? 0.1 : 0.05)) {
+          const statusMsg = entry.filtered
+            ? `blocked (reason: ${entry.reason})`
+            : (entry.status === 'NXDOMAIN' ? 'domain not found' : 'no IP addresses');
+          console.log(`${entry.filtered ? '🚫' : 'ℹ️ '} ${entry.domain}: ${statusMsg}`);
         }
+        this.broadcast({
+          type: 'dns_query',
+          timestamp: entry.timestamp.toISOString(),
+          source,
+          destination: null,
+          data: {
+            domain: entry.domain,
+            ip: entry.filtered ? 'Blocked' : 'No Answer',
+            queryType: entry.type,
+            elapsed: entry.elapsed,
+            upstream: entry.upstreamElapsed,
+            cached: entry.cached,
+            filtered: entry.filtered,
+            clientIp: entry.client,
+            status: entry.status
+          }
+        });
         return;
       }
     }
 
-    for (const ip of entry.answer) {
+    const lookups = await Promise.all(
+      entry.answer.map(ip => this.geoService.lookup(ip).then(destination => ({ ip, destination })))
+    );
+
+    for (const { ip, destination } of lookups) {
       console.log(`  🌍 Looking up GeoIP for: ${ip}`);
-      const destination = await this.geoService.lookup(ip);
 
       if (destination) {
         console.log(`  ✅ GeoIP found: ${destination.city}, ${destination.country} (${destination.lat}, ${destination.lng})`);
@@ -282,7 +254,7 @@ class DNSPoller {
         type: 'dns_query',
         timestamp: entry.timestamp.toISOString(),
         source,
-        destination, // May be null if geo lookup failed or was skipped
+        destination,
         data: {
           domain: entry.domain,
           ip,
@@ -297,7 +269,7 @@ class DNSPoller {
         }
       };
 
-      console.log(`  📤 Broadcasting to clients: destination=${!!destination ? 'YES' : 'NO'}`);
+      console.log(`  📤 Broadcasting: destination=${destination ? 'YES' : 'NO'}`);
       this.broadcast(message);
     }
   }
