@@ -65,7 +65,19 @@ const state = {
 const _animations = new Map(); // key → { startTime, duration, onFrame, onComplete }
 let _rafId = null;
 
+function prefersReducedMotion() {
+  return typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 function _scheduleAnimation(key, duration, onFrame, onComplete) {
+  // Honor reduced-motion: jump straight to the final frame, skip the tween.
+  if (prefersReducedMotion()) {
+    try { onFrame(1); } catch (error) { console.error('Animation frame error:', error); }
+    if (onComplete) { try { onComplete(); } catch (e) { console.error('Animation complete error:', e); } }
+    return;
+  }
+
   _animations.set(key, { startTime: null, duration, onFrame, onComplete: onComplete || null });
   if (_rafId === null) {
     _rafId = requestAnimationFrame(_animationLoop);
@@ -246,6 +258,9 @@ function addPulseSource() {
 }
 
 function animatePulse() {
+  // Reduced-motion: leave the pulse layer at its static resting appearance.
+  if (prefersReducedMotion()) return;
+
   let pulsePhase = 0;
 
   function animate() {
@@ -1215,7 +1230,9 @@ function sanitizeHTML(str) {
   if (typeof str !== 'string') return '';
   const div = document.createElement('div');
   div.textContent = str;
-  return div.innerHTML;
+  // textContent->innerHTML escapes <, >, & but NOT quotes; escape them too so the
+  // result is safe inside double/single-quoted HTML attribute contexts as well.
+  return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function savePreference(key, value) {
@@ -1365,12 +1382,55 @@ function setupModalEventListeners() {
   if (sourceLng) sourceLng.addEventListener('input', validateCoordinates);
 }
 
+// Element focused before the modal opened, so focus can be restored on close.
+let modalPreviousFocus = null;
+
+function getModalFocusable(modal) {
+  return Array.from(modal.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )).filter(el => !el.disabled && el.offsetParent !== null);
+}
+
+function handleModalKeydown(e) {
+  const modal = document.getElementById('source-location-modal');
+  if (!modal || !modal.classList.contains('active')) return;
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeSourceLocationModal();
+    return;
+  }
+
+  if (e.key === 'Tab') {
+    const focusable = getModalFocusable(modal);
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+}
+
 function openSourceLocationModal() {
   const modal = document.getElementById('source-location-modal');
   if (modal) {
+    modalPreviousFocus = document.activeElement;
     modal.classList.add('active');
     // Load current values
     loadCurrentSourceLocation();
+
+    document.addEventListener('keydown', handleModalKeydown);
+
+    // Move focus into the dialog for keyboard/screen-reader users
+    const focusable = getModalFocusable(modal);
+    if (focusable.length > 0) focusable[0].focus();
   }
 }
 
@@ -1378,6 +1438,13 @@ function closeSourceLocationModal() {
   const modal = document.getElementById('source-location-modal');
   if (modal) {
     modal.classList.remove('active');
+    document.removeEventListener('keydown', handleModalKeydown);
+
+    // Restore focus to whatever triggered the modal
+    if (modalPreviousFocus && typeof modalPreviousFocus.focus === 'function') {
+      modalPreviousFocus.focus();
+    }
+    modalPreviousFocus = null;
   }
 }
 

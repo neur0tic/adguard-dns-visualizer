@@ -36,7 +36,7 @@ body {
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    transition: all 0.5s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: transform 0.5s cubic-bezier(0.28, 0.11, 0.32, 1), background-color 0.4s cubic-bezier(0.28, 0.11, 0.32, 1), border-color 0.4s cubic-bezier(0.28, 0.11, 0.32, 1);
     box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.05) inset;
 }
 
@@ -64,7 +64,7 @@ body.sidebar-right .sidebar {
     padding: 0 20px;
     transform: translateY(-100%);
     opacity: 0;
-    transition: all 0.5s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: transform 0.5s cubic-bezier(0.28, 0.11, 0.32, 1), opacity 0.5s cubic-bezier(0.28, 0.11, 0.32, 1), background-color 0.4s cubic-bezier(0.28, 0.11, 0.32, 1);
     pointer-events: none;
 }
 
@@ -139,7 +139,7 @@ body.sidebar-hidden .sidebar-hide-toggle {
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.2px;
-    transition: all 0.2s ease;
+    transition: color 0.2s ease;
 }
 
 .footer-link:hover {
@@ -237,7 +237,7 @@ body.sidebar-hidden .sidebar-hide-toggle {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
     border: none;
-    transition: all 0.3s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: background-color 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), transform 0.3s cubic-bezier(0.28, 0.11, 0.32, 1);
     letter-spacing: -0.08px;
 }
 
@@ -305,7 +305,7 @@ body.sidebar-hidden .sidebar-hide-toggle {
     color: #f5f5f7;
     animation: fadeIn 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), fadeOut 0.3s cubic-bezier(0.28, 0.11, 0.32, 1) 2.7s forwards;
     opacity: 1;
-    transition: all 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: background-color 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), transform 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
 }
 
 .log-entry:hover {
@@ -390,7 +390,7 @@ body.sidebar-hidden .sidebar-hide-toggle {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    transition: all 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
 }
 
@@ -549,6 +549,18 @@ body.sidebar-hidden .sidebar-hide-toggle {
     opacity: 0.9;
 }
 
+/* DNS query type colors — kept here (not inline) so CSP can drop style-src 'unsafe-inline' */
+.legend-color--a { background: #f6ad55; }
+.legend-color--aaaa { background: #4299e1; }
+.legend-color--cname { background: #48bb78; }
+.legend-color--mx { background: #9f7aea; }
+.legend-color--txt { background: #ed8936; }
+.legend-color--ns { background: #38b2ac; }
+.legend-color--soa { background: #fc8181; }
+.legend-color--ptr { background: #f687b3; }
+.legend-color--srv { background: #ecc94b; }
+.legend-color--caa { background: #667eea; }
+
 .legend-label {
     font-size: 9px;
     font-weight: 600;
@@ -572,7 +584,7 @@ body.sidebar-hidden .sidebar-hide-toggle {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(255, 255, 255, 0.05) inset;
     z-index: 101;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: background-color 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), border-color 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), transform 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), box-shadow 0.3s cubic-bezier(0.28, 0.11, 0.32, 1);
 }
 
 .theme-toggle:hover,
@@ -594,7 +606,7 @@ body.sidebar-hidden .sidebar-hide-toggle {
     cursor: pointer;
     padding: 0;
     opacity: 0.85;
-    transition: all 0.2s ease;
+    transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
     color: #e8eaed;
 }
 
@@ -682,7 +694,7 @@ body.sidebar-hidden.sidebar-right .sidebar-toggle {
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(255, 255, 255, 0.05) inset;
     z-index: 1001;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: background-color 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), border-color 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), padding 0.3s cubic-bezier(0.28, 0.11, 0.32, 1), transform 0.3s cubic-bezier(0.28, 0.11, 0.32, 1);
 }
 
 body.sidebar-right .sidebar-hide-toggle {
@@ -885,7 +897,7 @@ body.sidebar-hidden.sidebar-right .layout-toggle {
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    transition: all 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: background-color 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), color 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), transform 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
 }
 
 .modal-close:hover {
@@ -902,7 +914,8 @@ body.sidebar-hidden.sidebar-right .layout-toggle {
     margin-bottom: 24px;
 }
 
-.form-section label {
+.form-section label,
+.form-section .form-group-label {
     display: block;
     margin-bottom: 8px;
     font-size: 13px;
@@ -921,7 +934,7 @@ body.sidebar-hidden.sidebar-right .layout-toggle {
     color: #f5f5f7;
     font-size: 15px;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-    transition: all 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: border-color 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), background-color 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), box-shadow 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
     letter-spacing: -0.2px;
 }
 
@@ -980,7 +993,7 @@ body.sidebar-hidden.sidebar-right .layout-toggle {
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: background-color 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), border-color 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), transform 0.2s cubic-bezier(0.28, 0.11, 0.32, 1), box-shadow 0.2s cubic-bezier(0.28, 0.11, 0.32, 1);
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
     letter-spacing: -0.2px;
 }
@@ -1026,7 +1039,7 @@ body.sidebar-hidden.sidebar-right .layout-toggle {
     z-index: 10001;
     opacity: 0;
     transform: translateX(100px) scale(0.9);
-    transition: all 0.4s cubic-bezier(0.28, 0.11, 0.32, 1);
+    transition: opacity 0.4s cubic-bezier(0.28, 0.11, 0.32, 1), transform 0.4s cubic-bezier(0.28, 0.11, 0.32, 1);
     pointer-events: none;
     letter-spacing: -0.2px;
 }
@@ -2226,5 +2239,61 @@ input:checked+.slider:before {
 
     100% {
         transform: scale(1);
+    }
+}
+
+/* ========================================
+   FOCUS VISIBILITY (keyboard navigation)
+   ======================================== */
+.theme-toggle button:focus-visible,
+.sidebar-toggle button:focus-visible,
+.source-location-toggle button:focus-visible,
+.layout-toggle button:focus-visible,
+.sidebar-hide-toggle button:focus-visible,
+.modal-close:focus-visible,
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.footer-link:focus-visible,
+.form-input:focus-visible,
+.form-select:focus-visible {
+    outline: 2px solid #0a84ff;
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* The toggle switch hides its native checkbox; surface focus on the visible slider */
+.switch input:focus-visible+.slider {
+    outline: 2px solid #0a84ff;
+    outline-offset: 2px;
+}
+
+body.light-mode .theme-toggle button:focus-visible,
+body.light-mode .sidebar-toggle button:focus-visible,
+body.light-mode .source-location-toggle button:focus-visible,
+body.light-mode .layout-toggle button:focus-visible,
+body.light-mode .sidebar-hide-toggle button:focus-visible,
+body.light-mode .modal-close:focus-visible,
+body.light-mode .footer-link:focus-visible {
+    outline-color: #007aff;
+}
+
+/* ========================================
+   REDUCED MOTION
+   Honor prefers-reduced-motion: strip animations/transitions,
+   leaving final states intact. JS rAF loops are guarded separately.
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .status-indicator {
+        animation: none !important;
     }
 }
