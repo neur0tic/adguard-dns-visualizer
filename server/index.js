@@ -22,6 +22,7 @@ const config = {
   statsInterval: parseEnvInt(process.env.STATS_INTERVAL_MS) || 5000,
   maxProcessedIds: parseEnvInt(process.env.MAX_PROCESSED_IDS) || 1000,
   maxConcurrentArcs: parseEnvInt(process.env.MAX_CONCURRENT_ARCS) || 50,
+  maxConnections: parseEnvInt(process.env.MAX_WS_CONNECTIONS) || 50,
   sourceLat: parseFloat(process.env.SOURCE_LAT) || 3.139,
   sourceLng: parseFloat(process.env.SOURCE_LNG) || 101.6869,
   nodeEnv: process.env.NODE_ENV || 'development'
@@ -305,7 +306,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
+      styleSrc: ["'self'", "https://fonts.googleapis.com", "https://unpkg.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       scriptSrc: ["'self'", "https://unpkg.com"],
       connectSrc: ["'self'", "https://unpkg.com", "https://demotiles.maplibre.org"],
@@ -342,6 +343,14 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws, req) => {
   const clientIp = req.socket.remoteAddress;
+
+  // Cap concurrent connections to prevent resource-exhaustion DoS
+  if (poller.activeConnections.size >= config.maxConnections) {
+    console.warn(`🚫 Connection from ${clientIp} rejected: max connections (${config.maxConnections}) reached`);
+    ws.close(1013, 'Server at capacity, try again later');
+    return;
+  }
+
   console.log(`✅ Client connected from ${clientIp} (Total: ${poller.activeConnections.size + 1})`);
 
   poller.addConnection(ws);

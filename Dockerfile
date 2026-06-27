@@ -26,6 +26,14 @@ FROM node:25-alpine AS production
 # Set NODE_ENV
 ENV NODE_ENV=production
 
+# Upgrade base-image packages to pick up security fixes (e.g. openssl >=3.5.7-r0,
+# CVE-2026-34182) — the dependencies stage's upgrade does not carry into this stage.
+# Also remove the bundled npm/npx CLI: it is not used at runtime (the app starts via
+# `node server/index.js`) and its vendored deps carry vulns (e.g. picomatch ReDoS,
+# CVE-2026-33671). Dropping it removes the finding and shrinks the attack surface.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Create non-root user and group
 RUN addgroup -g 1001 -S nodejs \
     && adduser -S nodejs -u 1001
