@@ -1,6 +1,6 @@
 {
   "name": "dns-visualization-dashboard",
-  "version": "1.0.0",
+  "version": "0.0.4",
   "description": "Real-time DNS traffic visualization dashboard using MapLibre and AdGuard Home",
   "main": "server/index.js",
   "type": "module",
