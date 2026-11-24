@@ -135,6 +135,11 @@ Find your coordinates at [latlong.net](https://www.latlong.net/) if you want to 
 # Same-origin connections are always allowed; other sites are rejected.
 ALLOWED_ORIGINS=https://dns.example.com
 
+# Hostnames you open the dashboard by (comma-separated), e.g. a LAN name.
+# IP addresses and localhost always work. Other hostnames get HTTP 421 unless
+# listed here or in ALLOWED_ORIGINS (this blocks DNS-rebinding attacks).
+ALLOWED_HOSTS=dashboard.lan,my-mac.local
+
 # Max WebSocket connections per client IP (0 = no limit).
 # Behind a reverse proxy every viewer shares the proxy's IP, so raise this or set 0.
 MAX_WS_CONNECTIONS_PER_IP=5
@@ -176,6 +181,9 @@ Make sure query logging is enabled in AdGuard (Settings → DNS Settings). Also 
 
 **WebSocket keeps disconnecting:**
 Refresh the page. If it keeps happening, check the server logs for errors. A log line `origin "..." not allowed` means you open the dashboard through a different hostname than the server sees (for example, a reverse proxy). Add that URL to `ALLOWED_ORIGINS`.
+
+**"Unknown host" (HTTP 421):**
+You opened the dashboard by a hostname (not an IP or `localhost`). Add that hostname to `ALLOWED_HOSTS`.
 
 **Using too much CPU:**
 Lower `MAX_CONCURRENT_ARCS` to 50 and increase `POLL_INTERVAL_MS` to 5000 in your `.env` file.

@@ -13,7 +13,9 @@ import {
   isOriginAllowed,
   ConnectionLimiter,
   insecureUrlWarning,
-  parseTrustProxy
+  parseTrustProxy,
+  parseAllowedHosts,
+  isHostAllowed
 } from './security.js';
 
 dotenv.config();
@@ -35,12 +37,17 @@ const config = {
   // Client never sends data; keep inbound frames tiny so they cannot exhaust memory
   wsMaxPayload: 1024,
   allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
+  // DNS-rebinding guard: hostnames (besides IPs and localhost) the dashboard is reached by
+  allowedHosts: parseAllowedHosts(process.env.ALLOWED_HOSTS),
   sourceLat: parseFloat(process.env.SOURCE_LAT) || 3.139,
   sourceLng: parseFloat(process.env.SOURCE_LNG) || 101.6869,
   nodeEnv: process.env.NODE_ENV || 'development'
 };
 
-const requiredEnvVars = ['ADGUARD_URL', 'ADGUARD_USERNAME', 'ADGUARD_PASSWORD'];
+// Hosts named in ALLOWED_ORIGINS are reachable names too
+config.allowedHosts.push(...parseAllowedHosts(config.allowedOrigins.map(origin => new URL(origin).host).join(',')));
+
+const requiredEnvVars =['ADGUARD_URL', 'ADGUARD_USERNAME', 'ADGUARD_PASSWORD'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]?.trim());
 
 if (missingEnvVars.length > 0) {
@@ -362,6 +369,16 @@ const limiter = rateLimit({
   legacyHeaders: false
 });
 
+// DNS-rebinding guard: refuse requests addressed to an unexpected hostname
+app.use((req, res, next) => {
+  if (isHostAllowed(req.headers.host, config.allowedHosts)) {
+    next();
+    return;
+  }
+  console.warn(`🚫 Request from ${req.socket.remoteAddress} rejected: host "${req.headers.host}" not allowed (add it to ALLOWED_HOSTS)`);
+  res.status(421).type('text/plain').send('Unknown host. Add this hostname to ALLOWED_HOSTS.');
+});
+
 // Static assets are served before the limiter so ordinary page loads
 // (HTML, JS, CSS, icons) do not use up a client's request budget.
 app.use(express.static(path.join(__dirname, '../public')));
@@ -382,7 +399,13 @@ const wss = new WebSocketServer({
   server,
   maxPayload: config.wsMaxPayload,
   // Reject cross-site handshakes (CSWSH): a page on another origin must not read the DNS stream
+  // and DNS-rebinding (attacker domain resolving to this server, where Origin matches Host)
   verifyClient: ({ origin, req }, done) => {
+    if (!isHostAllowed(req.headers.host, config.allowedHosts)) {
+      console.warn(`🚫 WebSocket handshake from ${req.socket.remoteAddress} rejected: host "${req.headers.host}" not allowed`);
+      done(false, 403, 'Forbidden');
+      return;
+    }
     if (isOriginAllowed(origin, req.headers.host, config.allowedOrigins)) {
       done(true);
       return;

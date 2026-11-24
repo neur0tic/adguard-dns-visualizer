@@ -4,8 +4,41 @@ import {
   isOriginAllowed,
   ConnectionLimiter,
   insecureUrlWarning,
-  parseTrustProxy
+  parseTrustProxy,
+  parseAllowedHosts,
+  isHostAllowed
 } from '../server/security.js';
+
+describe('isHostAllowed (DNS-rebinding guard)', () => {
+  it('allows IP literals and localhost, with or without port', () => {
+    for (const host of ['192.168.1.5:8080', '10.0.0.2', '[::1]:8080', '[fd00::5]', 'localhost:8080', 'LOCALHOST']) {
+      expect(isHostAllowed(host)).toBe(true);
+    }
+  });
+
+  it('rejects an unknown hostname (rebinding attacker domain)', () => {
+    expect(isHostAllowed('evil.example:8080')).toBe(false);
+    expect(isHostAllowed('dash.lan:8080')).toBe(false);
+  });
+
+  it('allows hostnames from ALLOWED_HOSTS, case-insensitively and ignoring port', () => {
+    const allowed = parseAllowedHosts('Dash.LAN, dns.example.com:443');
+    expect(allowed).toEqual(['dash.lan', 'dns.example.com']);
+    expect(isHostAllowed('dash.lan:8080', allowed)).toBe(true);
+    expect(isHostAllowed('DNS.example.com', allowed)).toBe(true);
+    expect(isHostAllowed('evil.example', allowed)).toBe(false);
+  });
+
+  it('rejects malformed Host values and allows a missing one', () => {
+    expect(isHostAllowed('')).toBe(false);
+    expect(isHostAllowed('bad host/with space')).toBe(false);
+    expect(isHostAllowed(undefined)).toBe(true);
+  });
+
+  it('does not treat an IP-looking subdomain as an IP literal', () => {
+    expect(isHostAllowed('192.168.1.5.evil.example')).toBe(false);
+  });
+});
 
 describe('parseTrustProxy', () => {
   it('is off when unset, empty or "false"', () => {

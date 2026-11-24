@@ -3,6 +3,8 @@
  * Kept free of side effects so they can be unit-tested in isolation.
  */
 
+import net from 'net';
+
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 /**
@@ -63,6 +65,61 @@ export function isOriginAllowed(origin, host, allowedOrigins = []) {
   }
 
   return false;
+}
+
+/**
+ * Parse a comma-separated ALLOWED_HOSTS value into lowercase hostnames
+ * (ports and brackets removed).
+ * @param {string|undefined} value
+ * @returns {string[]}
+ */
+export function parseAllowedHosts(value) {
+  if (!value || typeof value !== 'string') return [];
+  return value
+    .split(',')
+    .map(entry => hostnameOf(entry.trim()))
+    .filter(Boolean);
+}
+
+/**
+ * Extract the bare lowercase hostname from a Host header value
+ * ("Dash.LAN:8080" → "dash.lan", "[::1]:8080" → "::1"). Null if invalid.
+ * @param {string} hostHeader
+ * @returns {string|null}
+ */
+function hostnameOf(hostHeader) {
+  if (!hostHeader) return null;
+  try {
+    const hostname = new URL(`http://${hostHeader}`).hostname.toLowerCase();
+    return hostname.replace(/^\[(.*)\]$/, '$1') || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * DNS-rebinding guard: decide whether a request's Host header names this server.
+ *
+ * A rebinding attack points an attacker-owned domain at this server's IP, so the
+ * browser sends Host: attacker.example (and a matching Origin). Only names we
+ * expect are accepted:
+ * - IP literals (an attacker cannot serve a page from the server's own IP origin)
+ * - localhost
+ * - hostnames listed in allowedHosts (ALLOWED_HOSTS + ALLOWED_ORIGINS hosts)
+ *
+ * A missing Host header is allowed: browsers always send one, so its absence
+ * means a non-browser client that rebinding cannot drive.
+ *
+ * @param {string|undefined} hostHeader
+ * @param {string[]} allowedHosts - lowercase hostnames
+ * @returns {boolean}
+ */
+export function isHostAllowed(hostHeader, allowedHosts = []) {
+  if (hostHeader === undefined) return true;
+  const hostname = hostnameOf(hostHeader);
+  if (!hostname) return false;
+  if (hostname === 'localhost' || net.isIP(hostname) !== 0) return true;
+  return allowedHosts.includes(hostname);
 }
 
 /**
