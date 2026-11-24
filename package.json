@@ -5,7 +5,7 @@
   "main": "server/index.js",
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "start": "node server/index.js",
@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "dotenv": "^16.4.1",
-    "express": "^4.18.2",
+    "express": "^4.22.3",
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "node-fetch": "^3.3.2",
