@@ -8,6 +8,15 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import AdGuardClient from './adguard-client.js';
 import GeoService from './geo-service.js';
+import {
+  parseAllowedOrigins,
+  isOriginAllowed,
+  ConnectionLimiter,
+  insecureUrlWarning,
+  parseTrustProxy,
+  parseAllowedHosts,
+  isHostAllowed
+} from './security.js';
 
 dotenv.config();
 
@@ -23,12 +32,22 @@ const config = {
   maxProcessedIds: parseEnvInt(process.env.MAX_PROCESSED_IDS) || 1000,
   maxConcurrentArcs: parseEnvInt(process.env.MAX_CONCURRENT_ARCS) || 50,
   maxConnections: parseEnvInt(process.env.MAX_WS_CONNECTIONS) || 50,
+  // 0 disables the per-IP cap (e.g. behind a reverse proxy where every client shares one IP)
+  maxConnectionsPerIp: parseEnvInt(process.env.MAX_WS_CONNECTIONS_PER_IP) ?? 5,
+  // Client never sends data; keep inbound frames tiny so they cannot exhaust memory
+  wsMaxPayload: 1024,
+  allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
+  // DNS-rebinding guard: hostnames (besides IPs and localhost) the dashboard is reached by
+  allowedHosts: parseAllowedHosts(process.env.ALLOWED_HOSTS),
   sourceLat: parseFloat(process.env.SOURCE_LAT) || 3.139,
   sourceLng: parseFloat(process.env.SOURCE_LNG) || 101.6869,
   nodeEnv: process.env.NODE_ENV || 'development'
 };
 
-const requiredEnvVars = ['ADGUARD_URL', 'ADGUARD_USERNAME', 'ADGUARD_PASSWORD'];
+// Hosts named in ALLOWED_ORIGINS are reachable names too
+config.allowedHosts.push(...parseAllowedHosts(config.allowedOrigins.map(origin => new URL(origin).host).join(',')));
+
+const requiredEnvVars =['ADGUARD_URL', 'ADGUARD_USERNAME', 'ADGUARD_PASSWORD'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]?.trim());
 
 if (missingEnvVars.length > 0) {
@@ -54,6 +73,12 @@ const geoService = new GeoService(config.sourceLat, config.sourceLng, {
   sourceCity: process.env.SOURCE_CITY,
   sourceCountry: process.env.SOURCE_COUNTRY
 });
+
+const transportWarnings = [
+  insecureUrlWarning(process.env.ADGUARD_URL, 'ADGUARD_URL', 'The AdGuard username and password'),
+  insecureUrlWarning(geoService.apiUrl, 'GEOIP_API_URL', 'Every looked-up destination IP (your browsing pattern)')
+].filter(Boolean);
+transportWarnings.forEach(warning => console.warn(warning));
 
 class DNSPoller {
   constructor(adguardClient, geoService, config) {
@@ -302,6 +327,23 @@ const app = express();
 const server = http.createServer(app);
 const poller = new DNSPoller(adguardClient, geoService, config);
 
+// Behind a reverse proxy, trust X-Forwarded-For only from the listed proxies so
+// req.ip (and the rate limiter key) is the real client, not the proxy.
+const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+if (trustProxy.error) {
+  console.error(`❌ ${trustProxy.error}`);
+  process.exit(1);
+}
+if (trustProxy.value) {
+  try {
+    app.set('trust proxy', trustProxy.value);
+    console.log(`🔀 Trusting X-Forwarded-For from: ${trustProxy.value.join(', ')}`);
+  } catch (error) {
+    console.error(`❌ Invalid TRUST_PROXY value: ${error.message}`);
+    process.exit(1);
+  }
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -327,9 +369,21 @@ const limiter = rateLimit({
   legacyHeaders: false
 });
 
-app.use(limiter);
+// DNS-rebinding guard: refuse requests addressed to an unexpected hostname
+app.use((req, res, next) => {
+  if (isHostAllowed(req.headers.host, config.allowedHosts)) {
+    next();
+    return;
+  }
+  console.warn(`🚫 Request from ${req.socket.remoteAddress} rejected: host "${req.headers.host}" not allowed (add it to ALLOWED_HOSTS)`);
+  res.status(421).type('text/plain').send('Unknown host. Add this hostname to ALLOWED_HOSTS.');
+});
 
+// Static assets are served before the limiter so ordinary page loads
+// (HTML, JS, CSS, icons) do not use up a client's request budget.
 app.use(express.static(path.join(__dirname, '../public')));
+
+app.use(limiter);
 
 app.get('/health', (req, res) => {
   res.json({
@@ -339,7 +393,27 @@ app.get('/health', (req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ server });
+const connectionLimiter = new ConnectionLimiter(config.maxConnectionsPerIp);
+
+const wss = new WebSocketServer({
+  server,
+  maxPayload: config.wsMaxPayload,
+  // Reject cross-site handshakes (CSWSH): a page on another origin must not read the DNS stream
+  // and DNS-rebinding (attacker domain resolving to this server, where Origin matches Host)
+  verifyClient: ({ origin, req }, done) => {
+    if (!isHostAllowed(req.headers.host, config.allowedHosts)) {
+      console.warn(`🚫 WebSocket handshake from ${req.socket.remoteAddress} rejected: host "${req.headers.host}" not allowed`);
+      done(false, 403, 'Forbidden');
+      return;
+    }
+    if (isOriginAllowed(origin, req.headers.host, config.allowedOrigins)) {
+      done(true);
+      return;
+    }
+    console.warn(`🚫 WebSocket handshake from ${req.socket.remoteAddress} rejected: origin "${origin}" not allowed`);
+    done(false, 403, 'Forbidden');
+  }
+});
 
 wss.on('connection', (ws, req) => {
   const clientIp = req.socket.remoteAddress;
@@ -351,22 +425,36 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
+  // Per-IP cap so a single client cannot take every slot
+  if (!connectionLimiter.tryAcquire(clientIp)) {
+    console.warn(`🚫 Connection from ${clientIp} rejected: per-IP limit (${connectionLimiter.maxPerIp}) reached`);
+    ws.close(1013, 'Too many connections from this address');
+    return;
+  }
+
   console.log(`✅ Client connected from ${clientIp} (Total: ${poller.activeConnections.size + 1})`);
 
   poller.addConnection(ws);
   poller.startPolling();
 
-  ws.on('close', () => {
-    console.log(`❌ Client disconnected from ${clientIp} (Total: ${poller.activeConnections.size - 1})`);
+  let released = false;
+  const cleanup = () => {
+    // 'error' is always followed by 'close'; release the per-IP slot only once
+    if (released) return;
+    released = true;
+    connectionLimiter.release(clientIp);
     poller.removeConnection(ws);
     poller.stopPolling();
+  };
+
+  ws.on('close', () => {
+    console.log(`❌ Client disconnected from ${clientIp} (Total: ${Math.max(poller.activeConnections.size - 1, 0)})`);
+    cleanup();
   });
 
   ws.on('error', (error) => {
-    // 'error' is always followed by 'close', so removeConnection/stopPolling run twice — harmless for Set
     console.error(`WebSocket error from ${clientIp}:`, error.message);
-    poller.removeConnection(ws);
-    poller.stopPolling();
+    cleanup();
   });
 
   ws.send(JSON.stringify({

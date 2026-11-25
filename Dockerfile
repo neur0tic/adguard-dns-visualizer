@@ -1,9 +1,13 @@
 # syntax=docker/dockerfile:1
 
+# Base image is pinned by multi-platform index digest for reproducible builds.
+# To update: docker buildx imagetools inspect node:26-alpine  → copy the top "Digest"
+# into both FROM lines, rebuild, and rescan.
+
 # ============================================
 # Stage 1: Dependencies
 # ============================================
-FROM node:25-alpine AS dependencies
+FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS dependencies
 
 # Set working directory
 WORKDIR /app
@@ -15,13 +19,13 @@ RUN apk upgrade --no-cache && apk add --no-cache dumb-init
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production --ignore-scripts \
+RUN npm ci --omit=dev --ignore-scripts \
     && npm cache clean --force
 
 # ============================================
 # Stage 2: Production
 # ============================================
-FROM node:25-alpine AS production
+FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS production
 
 # Set NODE_ENV
 ENV NODE_ENV=production
@@ -60,7 +64,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8080', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
+    CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 8080) + '/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

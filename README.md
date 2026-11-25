@@ -77,12 +77,12 @@ docker compose down
 
 ### Option 2: Node.js
 
-You'll need Node.js 18+ and AdGuard Home running.
+You'll need Node.js 22.12+ and AdGuard Home running.
 
-**Note:** Node.js 18 or higher is required. If you're on an older version, upgrade first:
+**Note:** Node.js 22.12 or higher is required (the test toolchain needs it, and older lines are end-of-life). If you're on an older version, upgrade first:
 ```bash
 node -v  # Check your version
-# If below v18, upgrade from nodejs.org or use nvm
+# If below v22.12, upgrade from nodejs.org or use nvm
 ```
 
 ```bash
@@ -127,6 +127,33 @@ MAX_CONCURRENT_ARCS=100
 
 Find your coordinates at [latlong.net](https://www.latlong.net/) if you want to set your actual location.
 
+### Security settings
+
+```env
+# Extra origins that may open the WebSocket (comma-separated).
+# Only needed behind a reverse proxy that changes the Host header.
+# Same-origin connections are always allowed; other sites are rejected.
+ALLOWED_ORIGINS=https://dns.example.com
+
+# Hostnames you open the dashboard by (comma-separated), e.g. a LAN name.
+# IP addresses and localhost always work. Other hostnames get HTTP 421 unless
+# listed here or in ALLOWED_ORIGINS (this blocks DNS-rebinding attacks).
+ALLOWED_HOSTS=dashboard.lan,my-mac.local
+
+# Max WebSocket connections per client IP (0 = no limit).
+# Behind a reverse proxy every viewer shares the proxy's IP, so raise this or set 0.
+MAX_WS_CONNECTIONS_PER_IP=5
+
+# Reverse proxy IPs / CIDR ranges whose X-Forwarded-For header is trusted,
+# so rate limiting sees the real client IP. Leave unset without a proxy.
+# Also accepts loopback, linklocal, uniquelocal. "true" and "*" are refused.
+TRUST_PROXY=172.18.0.0/16
+```
+
+The dashboard has no login. It shows every DNS query and client IP on your network, so keep it on a trusted network or behind a reverse proxy that adds authentication.
+
+The server warns at startup when `ADGUARD_URL` or `GEOIP_API_URL` uses plain HTTP to a remote host. Over HTTP, the AdGuard password and the looked-up destination IPs can be read on the network. The default GeoIP service (ip-api.com free tier) only supports HTTP; use an HTTPS provider in `GEOIP_API_URL` if that matters to you.
+
 ## Features
 
 **Map stuff:**
@@ -153,7 +180,10 @@ Check that AdGuard is actually running and the URL in `.env` is right. Try openi
 Make sure query logging is enabled in AdGuard (Settings → DNS Settings). Also try browsing some websites to generate queries.
 
 **WebSocket keeps disconnecting:**
-Refresh the page. If it keeps happening, check the server logs for errors.
+Refresh the page. If it keeps happening, check the server logs for errors. A log line `origin "..." not allowed` means you open the dashboard through a different hostname than the server sees (for example, a reverse proxy). Add that URL to `ALLOWED_ORIGINS`.
+
+**"Unknown host" (HTTP 421):**
+You opened the dashboard by a hostname (not an IP or `localhost`). Add that hostname to `ALLOWED_HOSTS`.
 
 **Using too much CPU:**
 Lower `MAX_CONCURRENT_ARCS` to 50 and increase `POLL_INTERVAL_MS` to 5000 in your `.env` file.
